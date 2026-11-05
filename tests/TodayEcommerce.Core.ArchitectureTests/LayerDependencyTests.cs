@@ -1,4 +1,5 @@
 using System.Reflection;
+using Microsoft.AspNetCore.Mvc;
 using NetArchTest.Rules;
 
 namespace TodayEcommerce.Core.ArchitectureTests;
@@ -72,9 +73,11 @@ public class LayerDependencyTests
     {
         // WebApi references Infrastructure only to compose DI in Program.cs.
         // Controllers must talk to Application (MediatR), never to persistence directly.
+        // Controllers are identified by inheritance, not by name: a class named "OrdersEndpoint"
+        // that derives from ControllerBase is still a controller and must obey the rule.
         var result = Types.InAssembly(WebApiAssembly)
             .That()
-            .HaveNameEndingWith("Controller")
+            .Inherit(typeof(ControllerBase))
             .ShouldNot()
             .HaveDependencyOnAny(InfrastructureNamespace, EntityFrameworkCore)
             .GetResult();
