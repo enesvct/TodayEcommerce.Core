@@ -46,15 +46,11 @@ public sealed record Money
         return new Money(Amount + other.Amount, Currency);
     }
 
-    public Money Multiply(int factor)
-    {
-        if (factor < 0)
-        {
-            throw new DomainException($"Money cannot be multiplied by a negative factor. Given: {factor}");
-        }
-
-        return new Money(Amount * factor, Currency);
-    }
+    /// <summary>
+    /// Unit price × quantity. Taking <see cref="Quantity"/> instead of <c>int</c> means
+    /// a negative or zero multiplier is impossible by construction.
+    /// </summary>
+    public Money Multiply(Quantity quantity) => new(Amount * quantity.Value, Currency);
 
     private void EnsureSameCurrency(Money other)
     {
