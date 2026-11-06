@@ -88,6 +88,27 @@ public sealed class FakeCacheService : ICacheService
     }
 }
 
+public sealed class FakeProductSearchService : IProductSearchService
+{
+    public Dictionary<Guid, Application.Catalog.Search.ProductSearchDocument> Indexed { get; } = new();
+    public Application.Catalog.Search.ProductSearchCriteria? LastCriteria { get; private set; }
+
+    public Task IndexAsync(Application.Catalog.Search.ProductSearchDocument document, CancellationToken cancellationToken = default)
+    {
+        Indexed[document.Id] = document;
+        return Task.CompletedTask;
+    }
+
+    public Task<Application.Catalog.Search.PagedResult<Application.Catalog.Search.ProductSearchHit>> SearchAsync(
+        Application.Catalog.Search.ProductSearchCriteria criteria,
+        CancellationToken cancellationToken = default)
+    {
+        LastCriteria = criteria;
+        return Task.FromResult(new Application.Catalog.Search.PagedResult<Application.Catalog.Search.ProductSearchHit>(
+            Array.Empty<Application.Catalog.Search.ProductSearchHit>(), 0, criteria.Page, criteria.PageSize));
+    }
+}
+
 public sealed class FixedDateTimeProvider : IDateTimeProvider
 {
     public DateTime UtcNow { get; set; } = new(2026, 11, 6, 10, 0, 0, DateTimeKind.Utc);

@@ -33,5 +33,23 @@ services:
       timeout: 3s
       retries: 10
 
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.15.3
+    container_name: todayecommerce-elasticsearch
+    environment:
+      discovery.type: single-node          # one node, no cluster: fine for development
+      xpack.security.enabled: "false"      # local only (bound to 127.0.0.1); production MUST enable security
+      ES_JAVA_OPTS: "-Xms512m -Xmx512m"   # cap memory; the default would take a large share of RAM
+    ports:
+      - "127.0.0.1:9200:9200"
+    volumes:
+      - elasticsearch-data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs http://localhost:9200/_cluster/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+
 volumes:
+  elasticsearch-data:
   postgres-data:

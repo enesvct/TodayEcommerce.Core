@@ -3,6 +3,8 @@ using Microsoft.AspNetCore.Mvc;
 using TodayEcommerce.Core.Application.Catalog.Commands.ChangeProductPrice;
 using TodayEcommerce.Core.Application.Catalog.Commands.CreateProduct;
 using TodayEcommerce.Core.Application.Catalog.Queries.GetProductById;
+using TodayEcommerce.Core.Application.Catalog.Queries.SearchProducts;
+using TodayEcommerce.Core.Application.Catalog.Search;
 
 namespace TodayEcommerce.Core.WebApi.Controllers;
 
@@ -27,6 +29,16 @@ public sealed class ProductsController : ControllerBase
     {
         var id = await _sender.Send(command, cancellationToken);
         return CreatedAtAction(nameof(GetById), new { id }, new { id });
+    }
+
+    /// <summary>Full-text search, e.g. /api/products/search?text=telefn&amp;maxPrice=12000&amp;inStockOnly=true</summary>
+    [HttpGet("search")]
+    [ProducesResponseType(typeof(PagedResult<ProductSearchHit>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status503ServiceUnavailable)]
+    public async Task<IActionResult> Search([FromQuery] SearchProductsQuery query, CancellationToken cancellationToken)
+    {
+        return Ok(await _sender.Send(query, cancellationToken));
     }
 
     [HttpGet("{id:guid}")]

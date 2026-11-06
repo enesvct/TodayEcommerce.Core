@@ -17,6 +17,7 @@ public sealed class ApplicationTestHost
     public FakeUnitOfWork UnitOfWork { get; } = new();
     public FixedDateTimeProvider Clock { get; } = new();
     public FakeCacheService Cache { get; } = new();
+    public FakeProductSearchService Search { get; } = new();
 
     public IMediator Mediator { get; }
 
@@ -26,6 +27,7 @@ public sealed class ApplicationTestHost
         services.AddLogging();
         services.AddApplication();
         services.AddSingleton<ICacheService>(Cache);
+        services.AddSingleton<IProductSearchService>(Search);
         services.AddSingleton<IProductRepository>(Products);
         services.AddSingleton<IOrderRepository>(Orders);
         services.AddSingleton<IUnitOfWork>(UnitOfWork);

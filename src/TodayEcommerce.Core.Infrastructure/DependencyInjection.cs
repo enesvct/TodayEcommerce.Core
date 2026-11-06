@@ -7,6 +7,7 @@ using TodayEcommerce.Core.Domain.Ordering;
 using TodayEcommerce.Core.Infrastructure.Caching;
 using TodayEcommerce.Core.Infrastructure.Persistence;
 using TodayEcommerce.Core.Infrastructure.Persistence.Repositories;
+using TodayEcommerce.Core.Infrastructure.Search;
 using TodayEcommerce.Core.Infrastructure.Services;
 
 namespace TodayEcommerce.Core.Infrastructure;
@@ -42,6 +43,17 @@ public static class DependencyInjection
             options.InstanceName = "todayecommerce:"; // prefix so several apps can share one Redis
         });
         services.AddSingleton<ICacheService, RedisCacheService>();
+
+        var elasticsearchUrl = configuration.GetConnectionString("Elasticsearch")
+            ?? throw new InvalidOperationException("Connection string 'Elasticsearch' is not configured.");
+        services.AddHttpClient(ProductIndex.HttpClientName, client =>
+        {
+            client.BaseAddress = new Uri(elasticsearchUrl.TrimEnd('/') + "/");
+            client.Timeout = TimeSpan.FromSeconds(5); // a hung search engine must not hang our requests
+        });
+        services.AddSingleton<ProductIndex>();
+        services.AddSingleton<IProductSearchService, ElasticsearchProductSearchService>();
+        services.AddHostedService<ProductSearchIndexInitializer>();
 
         return services;
     }

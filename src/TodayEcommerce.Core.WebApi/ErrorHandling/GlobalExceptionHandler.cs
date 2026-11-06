@@ -32,6 +32,7 @@ internal sealed class GlobalExceptionHandler : IExceptionHandler
             NotFoundException ex => Problem(StatusCodes.Status404NotFound, "Not found", ex.Message),
             ConcurrencyException ex => Problem(StatusCodes.Status409Conflict, "Concurrency conflict", ex.Message),
             DomainException ex => Problem(StatusCodes.Status422UnprocessableEntity, "Business rule violated", ex.Message),
+            ServiceUnavailableException ex => Problem(StatusCodes.Status503ServiceUnavailable, "Service unavailable", ex.Message),
 
             // Unknown = our fault. Log everything, reveal nothing (no stack traces or SQL to the client).
             _ => Problem(StatusCodes.Status500InternalServerError, "Server error", "An unexpected error occurred."),
