@@ -12,5 +12,13 @@ public interface IProductRepository
 {
     Task<Product?> GetByIdAsync(ProductId id, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Loads several products in a single round trip (avoids the N+1 query problem).
+    /// Ids that don't exist are simply absent from the result.
+    /// </summary>
+    Task<IReadOnlyList<Product>> GetByIdsAsync(
+        IReadOnlyCollection<ProductId> ids,
+        CancellationToken cancellationToken = default);
+
     void Add(Product product);
 }
