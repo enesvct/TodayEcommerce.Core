@@ -23,6 +23,12 @@ public sealed class Order : AggregateRoot<OrderId>
 
     public Money Total => _items.Aggregate(Money.Zero(Currency), (sum, item) => sum.Add(item.LineTotal));
 
+    /// <summary>For EF Core materialization only.</summary>
+    private Order()
+    {
+        Currency = null!;
+    }
+
     private Order(OrderId id, CustomerId customerId, string currency, DateTime createdAtUtc)
         : base(id)
     {

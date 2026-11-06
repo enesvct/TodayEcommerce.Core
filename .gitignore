@@ -483,3 +483,8 @@ $RECYCLE.BIN/
 
 # Local AI assistant config
 .claude/
+
+# Local secrets — never commit (templates: *.example.* files)
+.env
+src/TodayEcommerce.Core.WebApi/appsettings.Development.json
+appsettings.*.local.json

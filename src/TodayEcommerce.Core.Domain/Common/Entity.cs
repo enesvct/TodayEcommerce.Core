@@ -14,6 +14,12 @@ public abstract class Entity<TId> : IEquatable<Entity<TId>>
         Id = id;
     }
 
+    /// <summary>For ORM materialization only; Id is then set from the database.</summary>
+    protected Entity()
+    {
+        Id = default!;
+    }
+
     public bool Equals(Entity<TId>? other)
     {
         if (other is null)

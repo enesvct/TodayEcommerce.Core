@@ -1,6 +1,11 @@
+using TodayEcommerce.Core.Application;
+using TodayEcommerce.Core.Infrastructure;
+
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
+// Composition root: the only place that knows every layer and wires interfaces to implementations.
+builder.Services.AddApplication();
+builder.Services.AddInfrastructure(builder.Configuration);
 
 builder.Services.AddControllers();
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle

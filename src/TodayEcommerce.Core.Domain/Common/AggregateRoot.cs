@@ -15,4 +15,9 @@ public abstract class AggregateRoot<TId> : Entity<TId>
         : base(id)
     {
     }
+
+    /// <summary>For ORM materialization only.</summary>
+    protected AggregateRoot()
+    {
+    }
 }

@@ -20,6 +20,15 @@ public sealed class Product : AggregateRoot<ProductId>
     /// </summary>
     public int StockQuantity { get; private set; }
 
+    /// <summary>
+    /// For EF Core materialization only. Private, so application code cannot create an invalid Product.
+    /// </summary>
+    private Product()
+    {
+        Name = null!;
+        Price = null!;
+    }
+
     private Product(ProductId id, string name, Money price, int stockQuantity)
         : base(id)
     {

@@ -1,0 +1,23 @@
+# Local development infrastructure. Start: docker compose up -d   Stop: docker compose down
+# Password comes from .env (git-ignored). Copy .env.example to .env first.
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: todayecommerce-postgres
+    environment:
+      POSTGRES_DB: todayecommerce
+      POSTGRES_USER: todayecommerce
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env (see .env.example)}
+    ports:
+      - "5432:5432"
+    volumes:
+      # Named volume: data survives "docker compose down" (use "down -v" to wipe it).
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U todayecommerce -d todayecommerce"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  postgres-data:

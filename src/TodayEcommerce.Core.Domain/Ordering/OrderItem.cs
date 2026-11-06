@@ -23,6 +23,14 @@ public sealed class OrderItem : Entity<OrderItemId>
 
     public Money LineTotal => UnitPrice.Multiply(Quantity);
 
+    /// <summary>For EF Core materialization only.</summary>
+    private OrderItem()
+    {
+        ProductName = null!;
+        UnitPrice = null!;
+        Quantity = null!;
+    }
+
     internal OrderItem(ProductId productId, string productName, Money unitPrice, Quantity quantity)
         : base(OrderItemId.New())
     {
