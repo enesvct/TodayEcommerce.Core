@@ -1,4 +1,6 @@
+using FluentValidation;
 using Microsoft.Extensions.DependencyInjection;
+using TodayEcommerce.Core.Application.Common.Behaviors;
 
 namespace TodayEcommerce.Core.Application;
 
@@ -11,7 +13,16 @@ public static class DependencyInjection
     {
         // Scans this assembly and registers every IRequestHandler it finds,
         // so adding a new use-case never requires touching DI code.
-        services.AddMediatR(config => config.RegisterServicesFromAssembly(AssemblyReference.Assembly));
+        services.AddMediatR(config =>
+        {
+            config.RegisterServicesFromAssembly(AssemblyReference.Assembly);
+
+            // Runs before every handler. Order of AddOpenBehavior calls = order in the pipeline.
+            config.AddOpenBehavior(typeof(ValidationBehavior<,>));
+        });
+
+        // Finds every AbstractValidator<T> in this assembly (internal ones included).
+        services.AddValidatorsFromAssembly(AssemblyReference.Assembly, includeInternalTypes: true);
 
         return services;
     }

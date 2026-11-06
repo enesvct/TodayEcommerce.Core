@@ -19,6 +19,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TodayEcommerce.Core.Archite
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TodayEcommerce.Core.Domain.UnitTests", "tests\TodayEcommerce.Core.Domain.UnitTests\TodayEcommerce.Core.Domain.UnitTests.csproj", "{8624EB44-D664-46C4-889D-EA8F8C0B5A17}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TodayEcommerce.Core.Application.UnitTests", "tests\TodayEcommerce.Core.Application.UnitTests\TodayEcommerce.Core.Application.UnitTests.csproj", "{C64CADE7-3729-457B-850C-EF89EC69E3BC}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -101,6 +103,18 @@ Global
 		{8624EB44-D664-46C4-889D-EA8F8C0B5A17}.Release|x64.Build.0 = Release|Any CPU
 		{8624EB44-D664-46C4-889D-EA8F8C0B5A17}.Release|x86.ActiveCfg = Release|Any CPU
 		{8624EB44-D664-46C4-889D-EA8F8C0B5A17}.Release|x86.Build.0 = Release|Any CPU
+		{C64CADE7-3729-457B-850C-EF89EC69E3BC}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C64CADE7-3729-457B-850C-EF89EC69E3BC}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C64CADE7-3729-457B-850C-EF89EC69E3BC}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{C64CADE7-3729-457B-850C-EF89EC69E3BC}.Debug|x64.Build.0 = Debug|Any CPU
+		{C64CADE7-3729-457B-850C-EF89EC69E3BC}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{C64CADE7-3729-457B-850C-EF89EC69E3BC}.Debug|x86.Build.0 = Debug|Any CPU
+		{C64CADE7-3729-457B-850C-EF89EC69E3BC}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C64CADE7-3729-457B-850C-EF89EC69E3BC}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C64CADE7-3729-457B-850C-EF89EC69E3BC}.Release|x64.ActiveCfg = Release|Any CPU
+		{C64CADE7-3729-457B-850C-EF89EC69E3BC}.Release|x64.Build.0 = Release|Any CPU
+		{C64CADE7-3729-457B-850C-EF89EC69E3BC}.Release|x86.ActiveCfg = Release|Any CPU
+		{C64CADE7-3729-457B-850C-EF89EC69E3BC}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -112,5 +126,6 @@ Global
 		{71537D33-F467-4B3B-A030-1B46D2EB1306} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 		{3A7B1D2F-2ACC-4FF8-9D5A-72D23FD14B22} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
 		{8624EB44-D664-46C4-889D-EA8F8C0B5A17} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
+		{C64CADE7-3729-457B-850C-EF89EC69E3BC} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
 	EndGlobalSection
 EndGlobal
