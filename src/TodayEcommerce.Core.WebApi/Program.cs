@@ -1,5 +1,6 @@
 using TodayEcommerce.Core.Application;
 using TodayEcommerce.Core.Infrastructure;
+using TodayEcommerce.Core.WebApi.ErrorHandling;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -8,11 +9,17 @@ builder.Services.AddApplication();
 builder.Services.AddInfrastructure(builder.Configuration);
 
 builder.Services.AddControllers();
+builder.Services.AddProblemDetails();
+builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
+
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
 var app = builder.Build();
+
+// First middleware: catches exceptions thrown anywhere further down the pipeline.
+app.UseExceptionHandler();
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
@@ -28,3 +35,6 @@ app.UseAuthorization();
 app.MapControllers();
 
 app.Run();
+
+/// <summary>Exposed so integration tests can host the API in memory (WebApplicationFactory).</summary>
+public partial class Program;

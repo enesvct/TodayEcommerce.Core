@@ -1,6 +1,37 @@
-@TodayEcommerce.Core.WebApi_HostAddress = http://localhost:5144
+@host = http://localhost:5144
 
-GET {{TodayEcommerce.Core.WebApi_HostAddress}}/weatherforecast/
-Accept: application/json
+### 1) Create a product → copy "id" from the response into @productId
+POST {{host}}/api/products
+Content-Type: application/json
+
+{ "name": "Telefon X", "price": 10000, "currency": "TRY", "initialStock": 5 }
 
 ###
+@productId = 00000000-0000-0000-0000-000000000000
+
+### 2) Read it back
+GET {{host}}/api/products/{{productId}}
+
+### 3) Place an order → copy "id" into @orderId
+POST {{host}}/api/orders
+Content-Type: application/json
+
+{ "customerId": "11111111-1111-1111-1111-111111111111", "items": [ { "productId": "{{productId}}", "quantity": 2 } ] }
+
+###
+@orderId = 00000000-0000-0000-0000-000000000000
+
+### 4) Read the order
+GET {{host}}/api/orders/{{orderId}}
+
+### 400 — empty basket
+POST {{host}}/api/orders
+Content-Type: application/json
+
+{ "customerId": "11111111-1111-1111-1111-111111111111", "items": [] }
+
+### 422 — more than in stock
+POST {{host}}/api/orders
+Content-Type: application/json
+
+{ "customerId": "11111111-1111-1111-1111-111111111111", "items": [ { "productId": "{{productId}}", "quantity": 99 } ] }
