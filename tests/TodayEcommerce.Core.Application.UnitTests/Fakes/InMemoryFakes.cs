@@ -61,6 +61,33 @@ public sealed class FakeUnitOfWork : IUnitOfWork
     }
 }
 
+/// <summary>
+/// Stores JSON (like Redis does), so a DTO that can't round-trip through serialization fails here too.
+/// </summary>
+public sealed class FakeCacheService : ICacheService
+{
+    private readonly Dictionary<string, string> _entries = new();
+
+    public IReadOnlyCollection<string> Keys => _entries.Keys;
+
+    public Task<T?> GetAsync<T>(string key, CancellationToken cancellationToken = default)
+        where T : class =>
+        Task.FromResult(_entries.TryGetValue(key, out var json) ? System.Text.Json.JsonSerializer.Deserialize<T>(json) : null);
+
+    public Task SetAsync<T>(string key, T value, TimeSpan expiration, CancellationToken cancellationToken = default)
+        where T : class
+    {
+        _entries[key] = System.Text.Json.JsonSerializer.Serialize(value);
+        return Task.CompletedTask;
+    }
+
+    public Task RemoveAsync(string key, CancellationToken cancellationToken = default)
+    {
+        _entries.Remove(key);
+        return Task.CompletedTask;
+    }
+}
+
 public sealed class FixedDateTimeProvider : IDateTimeProvider
 {
     public DateTime UtcNow { get; set; } = new(2026, 11, 6, 10, 0, 0, DateTimeKind.Utc);

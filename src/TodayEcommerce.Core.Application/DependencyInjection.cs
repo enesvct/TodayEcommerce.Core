@@ -17,8 +17,10 @@ public static class DependencyInjection
         {
             config.RegisterServicesFromAssembly(AssemblyReference.Assembly);
 
-            // Runs before every handler. Order of AddOpenBehavior calls = order in the pipeline.
+            // Order of AddOpenBehavior calls = order in the pipeline:
+            // validate first (an invalid request must never hit the cache), then try the cache.
             config.AddOpenBehavior(typeof(ValidationBehavior<,>));
+            config.AddOpenBehavior(typeof(CachingBehavior<,>));
         });
 
         // Finds every AbstractValidator<T> in this assembly (internal ones included).

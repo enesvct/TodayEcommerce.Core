@@ -19,5 +19,19 @@ services:
       timeout: 3s
       retries: 10
 
+  redis:
+    image: redis:7-alpine
+    container_name: todayecommerce-redis
+    # Cache only: no persistence needed — losing it just means a few extra database reads.
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    ports:
+      # Bound to localhost only: this password-less instance must not be reachable from the network.
+      - "127.0.0.1:6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
 volumes:
   postgres-data:

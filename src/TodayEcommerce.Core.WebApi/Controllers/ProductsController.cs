@@ -1,5 +1,6 @@
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
+using TodayEcommerce.Core.Application.Catalog.Commands.ChangeProductPrice;
 using TodayEcommerce.Core.Application.Catalog.Commands.CreateProduct;
 using TodayEcommerce.Core.Application.Catalog.Queries.GetProductById;
 
@@ -36,4 +37,17 @@ public sealed class ProductsController : ControllerBase
         var product = await _sender.Send(new GetProductByIdQuery(id), cancellationToken);
         return product is null ? NotFound() : Ok(product);
     }
+
+    [HttpPut("{id:guid}/price")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> ChangePrice(Guid id, ChangePriceRequest request, CancellationToken cancellationToken)
+    {
+        await _sender.Send(new ChangeProductPriceCommand(id, request.Price), cancellationToken);
+        return NoContent();
+    }
+
+    /// <summary>HTTP body shape; the id comes from the route, so it isn't part of the body.</summary>
+    public sealed record ChangePriceRequest(decimal Price);
 }

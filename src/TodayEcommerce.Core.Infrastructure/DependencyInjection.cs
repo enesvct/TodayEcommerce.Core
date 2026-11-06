@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using TodayEcommerce.Core.Application.Abstractions;
 using TodayEcommerce.Core.Domain.Catalog;
 using TodayEcommerce.Core.Domain.Ordering;
+using TodayEcommerce.Core.Infrastructure.Caching;
 using TodayEcommerce.Core.Infrastructure.Persistence;
 using TodayEcommerce.Core.Infrastructure.Persistence.Repositories;
 using TodayEcommerce.Core.Infrastructure.Services;
@@ -32,6 +33,15 @@ public static class DependencyInjection
         services.AddScoped<IOrderRepository, OrderRepository>();
 
         services.AddSingleton<IDateTimeProvider, SystemDateTimeProvider>();
+
+        var redisConnectionString = configuration.GetConnectionString("Redis")
+            ?? throw new InvalidOperationException("Connection string 'Redis' is not configured.");
+        services.AddStackExchangeRedisCache(options =>
+        {
+            options.Configuration = redisConnectionString;
+            options.InstanceName = "todayecommerce:"; // prefix so several apps can share one Redis
+        });
+        services.AddSingleton<ICacheService, RedisCacheService>();
 
         return services;
     }

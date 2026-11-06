@@ -16,13 +16,16 @@ public sealed class ApplicationTestHost
     public FakeOrderRepository Orders { get; } = new();
     public FakeUnitOfWork UnitOfWork { get; } = new();
     public FixedDateTimeProvider Clock { get; } = new();
+    public FakeCacheService Cache { get; } = new();
 
     public IMediator Mediator { get; }
 
     public ApplicationTestHost()
     {
         var services = new ServiceCollection();
+        services.AddLogging();
         services.AddApplication();
+        services.AddSingleton<ICacheService>(Cache);
         services.AddSingleton<IProductRepository>(Products);
         services.AddSingleton<IOrderRepository>(Orders);
         services.AddSingleton<IUnitOfWork>(UnitOfWork);

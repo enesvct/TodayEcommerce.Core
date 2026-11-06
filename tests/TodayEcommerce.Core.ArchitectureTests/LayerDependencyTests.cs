@@ -18,6 +18,8 @@ public class LayerDependencyTests
 
     private const string EntityFrameworkCore = "Microsoft.EntityFrameworkCore";
     private const string AspNetCore = "Microsoft.AspNetCore";
+    private const string Redis = "StackExchange.Redis";
+    private const string DistributedCache = "Microsoft.Extensions.Caching";
 
     private static readonly Assembly DomainAssembly = typeof(Domain.AssemblyReference).Assembly;
     private static readonly Assembly ApplicationAssembly = typeof(Application.AssemblyReference).Assembly;
@@ -35,6 +37,7 @@ public class LayerDependencyTests
                 WebApiNamespace,
                 EntityFrameworkCore,
                 AspNetCore,
+                Redis,
                 "MediatR",
                 "FluentValidation")
             .GetResult();
@@ -43,15 +46,18 @@ public class LayerDependencyTests
     }
 
     [Fact]
-    public void Application_Should_Not_DependOn_Infrastructure_WebApi_Or_EfCore()
+    public void Application_Should_Not_DependOn_Infrastructure_WebApi_Or_Technologies()
     {
+        // Application talks to ICacheService only; which cache technology sits behind it is Infrastructure's business.
         var result = Types.InAssembly(ApplicationAssembly)
             .ShouldNot()
             .HaveDependencyOnAny(
                 InfrastructureNamespace,
                 WebApiNamespace,
                 EntityFrameworkCore,
-                AspNetCore)
+                AspNetCore,
+                Redis,
+                DistributedCache)
             .GetResult();
 
         AssertSuccessful(result);
