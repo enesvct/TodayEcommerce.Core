@@ -43,12 +43,13 @@ internal sealed class ElasticsearchProductSearchService : IProductSearchService
                 $"{ProductIndex.Name}/_doc/{document.Id}", document, JsonOptions, cancellationToken);
             response.EnsureSuccessStatusCode();
         }
-        catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
+        catch (Exception ex) when (
+            ex is HttpRequestException ||
+            (ex is TaskCanceledException && !cancellationToken.IsCancellationRequested)) // = HttpClient timeout
         {
-            // (Includes HttpClient timeouts, which surface as TaskCanceledException.)
-            // The product is already committed to the database; don't fail the user's request.
-            // The index is a derived copy and can be repaired (next write / reindex / Step 5 outbox).
-            _logger.LogWarning(ex, "Failed to index product {ProductId}; search results may be stale", document.Id);
+            // Propagate: this runs inside an outbox handler, which will retry the event later.
+            _logger.LogWarning(ex, "Failed to index product {ProductId}; outbox will retry", document.Id);
+            throw new ServiceUnavailableException("Product search index is temporarily unavailable.", ex);
         }
     }
 

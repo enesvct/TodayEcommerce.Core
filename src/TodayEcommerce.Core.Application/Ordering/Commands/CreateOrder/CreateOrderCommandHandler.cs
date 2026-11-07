@@ -2,7 +2,6 @@ using MediatR;
 using TodayEcommerce.Core.Application.Abstractions;
 using TodayEcommerce.Core.Application.Common.Exceptions;
 using TodayEcommerce.Core.Domain.Catalog;
-using TodayEcommerce.Core.Domain.Common;
 using TodayEcommerce.Core.Domain.Ordering;
 using TodayEcommerce.Core.Domain.SharedKernel;
 
@@ -55,11 +54,7 @@ internal sealed class CreateOrderCommandHandler : IRequestHandler<CreateOrderCom
 
             // Early, friendly check only. The authoritative stock decrease happens later
             // (Step 5: OrderCreated event → Outbox → Product.RemoveStock with concurrency control).
-            if (!product.HasStockFor(quantity))
-            {
-                throw new DomainException(
-                    $"Insufficient stock for '{product.Name}'. Requested: {quantity.Value}, available: {product.StockQuantity}");
-            }
+            product.EnsureStockFor(quantity); // rule + message now live in the Product aggregate
 
             // Name and price are copied from the catalog = snapshot at ordering time.
             order.AddItem(product.Id, product.Name, product.Price, quantity);

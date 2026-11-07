@@ -1,3 +1,4 @@
+using TodayEcommerce.Core.Domain.Catalog.Events;
 using TodayEcommerce.Core.Domain.Common;
 using TodayEcommerce.Core.Domain.SharedKernel;
 
@@ -44,12 +45,22 @@ public sealed class Product : AggregateRoot<ProductId>
             throw new DomainException($"Initial stock cannot be negative. Given: {initialStock}");
         }
 
-        return new Product(ProductId.New(), ValidateName(name), price, initialStock);
+        var product = new Product(ProductId.New(), ValidateName(name), price, initialStock);
+        product.Raise(new ProductCreatedDomainEvent(product.Id));
+        return product;
     }
 
     public void Rename(string newName)
     {
-        Name = ValidateName(newName);
+        var validated = ValidateName(newName);
+        if (validated == Name)
+        {
+            return; // nothing happened → no event
+        }
+
+        var oldName = Name;
+        Name = validated;
+        Raise(new ProductRenamedDomainEvent(Id, oldName, validated));
     }
 
     public void ChangePrice(Money newPrice)
@@ -60,26 +71,41 @@ public sealed class Product : AggregateRoot<ProductId>
             throw new DomainException($"Price currency cannot change from {Price.Currency} to {newPrice.Currency}.");
         }
 
+        if (newPrice == Price)
+        {
+            return; // same value → no change, no event (value-object equality at work)
+        }
+
+        var oldPrice = Price;
         Price = newPrice;
+        Raise(new ProductPriceChangedDomainEvent(Id, oldPrice.Amount, newPrice.Amount, newPrice.Currency));
     }
 
     public void AddStock(Quantity quantity)
     {
         StockQuantity = checked(StockQuantity + quantity.Value);
+        Raise(new ProductStockChangedDomainEvent(Id, StockQuantity));
     }
 
     public void RemoveStock(Quantity quantity)
+    {
+        EnsureStockFor(quantity);
+
+        StockQuantity -= quantity.Value;
+        Raise(new ProductStockChangedDomainEvent(Id, StockQuantity));
+    }
+
+    public bool HasStockFor(Quantity quantity) => StockQuantity >= quantity.Value;
+
+    /// <summary>The "insufficient stock" rule and its message live here — not in application handlers.</summary>
+    public void EnsureStockFor(Quantity quantity)
     {
         if (!HasStockFor(quantity))
         {
             throw new DomainException(
                 $"Insufficient stock for product '{Name}'. Requested: {quantity.Value}, available: {StockQuantity}");
         }
-
-        StockQuantity -= quantity.Value;
     }
-
-    public bool HasStockFor(Quantity quantity) => StockQuantity >= quantity.Value;
 
     private static string ValidateName(string name)
     {

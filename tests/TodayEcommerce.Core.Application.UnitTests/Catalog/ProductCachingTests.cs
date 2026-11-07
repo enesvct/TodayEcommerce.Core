@@ -50,9 +50,23 @@ public class ProductCachingTests
         await _host.Mediator.Send(new GetProductByIdQuery(phone.Id.Value)); // cached at 10.000
 
         await _host.Mediator.Send(new ChangeProductPriceCommand(phone.Id.Value, 12_000m));
+        await _host.DispatchDomainEventsAsync(); // the price-changed event's handler evicts the entry
         var afterChange = await _host.Mediator.Send(new GetProductByIdQuery(phone.Id.Value));
 
         Assert.Equal(12_000m, afterChange!.Price);
+    }
+
+    [Fact]
+    public async Task UntilTheEventIsHandled_CacheStillServesTheOldPrice_EventualConsistency()
+    {
+        // The honest trade-off of moving invalidation to the outbox: a short window of staleness.
+        var phone = SeedPhone(price: 10_000m);
+        await _host.Mediator.Send(new GetProductByIdQuery(phone.Id.Value));
+
+        await _host.Mediator.Send(new ChangeProductPriceCommand(phone.Id.Value, 12_000m));
+        var beforeDispatch = await _host.Mediator.Send(new GetProductByIdQuery(phone.Id.Value));
+
+        Assert.Equal(10_000m, beforeDispatch!.Price);
     }
 
     [Fact]

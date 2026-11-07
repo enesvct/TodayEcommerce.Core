@@ -11,25 +11,46 @@ public class ProductSearchTests
     private readonly ApplicationTestHost _host = new();
 
     [Fact]
-    public async Task CreatingProduct_IndexesIt_AfterSaving()
+    public async Task CreatingProduct_DoesNotIndexInsideTheRequest_ButItsEventDoes()
     {
         var id = await _host.Mediator.Send(new CreateProductCommand("Telefon X", 10_000m, "TRY", 3));
+
+        Assert.Empty(_host.Search.Indexed); // the command handler no longer talks to the search engine
+
+        await _host.DispatchDomainEventsAsync(); // = outbox processor running later
 
         var doc = _host.Search.Indexed[id];
         Assert.Equal("Telefon X", doc.Name);
         Assert.Equal("TRY", doc.Currency);
         Assert.True(doc.InStock);
-        Assert.Equal(1, _host.UnitOfWork.SaveCount);
     }
 
     [Fact]
-    public async Task ChangingPrice_ReindexesProduct()
+    public async Task ChangingPrice_ReindexesProduct_ViaEvent()
     {
         var id = await _host.Mediator.Send(new CreateProductCommand("Telefon X", 10_000m, "TRY", 3));
+        await _host.DispatchDomainEventsAsync();
 
         await _host.Mediator.Send(new ChangeProductPriceCommand(id, 12_000m));
+        await _host.DispatchDomainEventsAsync();
 
         Assert.Equal(12_000m, _host.Search.Indexed[id].Price);
+    }
+
+    [Fact]
+    public async Task HandlingTheSameEventTwice_GivesTheSameResult_Idempotent()
+    {
+        var id = await _host.Mediator.Send(new CreateProductCommand("Telefon X", 10_000m, "TRY", 3));
+        var events = _host.Products.All.Single().DomainEvents.ToList();
+
+        await _host.DispatchDomainEventsAsync();
+        var first = _host.Search.Indexed[id];
+
+        // Simulate at-least-once delivery: the outbox delivers the same event again.
+        await _host.DispatchAsync(events);
+
+        Assert.Single(_host.Search.Indexed);
+        Assert.Equal(first, _host.Search.Indexed[id]);
     }
 
     [Fact]

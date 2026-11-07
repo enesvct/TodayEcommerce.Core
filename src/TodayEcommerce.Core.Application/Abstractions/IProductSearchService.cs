@@ -8,8 +8,9 @@ namespace TodayEcommerce.Core.Application.Abstractions;
 public interface IProductSearchService
 {
     /// <summary>
-    /// Adds or replaces the document. Must not throw on search-engine failures (logs instead):
-    /// the product is already saved, and a stale index entry is repaired by the next write or a reindex.
+    /// Adds or replaces the document (idempotent: same id overwrites). Throws <c>ServiceUnavailableException</c>
+    /// when the search engine can't be reached, so the calling outbox handler fails and the event is retried.
+    /// (It used to swallow errors — acceptable only while nothing could retry.)
     /// </summary>
     Task IndexAsync(ProductSearchDocument document, CancellationToken cancellationToken = default);
 

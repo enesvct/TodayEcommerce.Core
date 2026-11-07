@@ -5,6 +5,7 @@ using TodayEcommerce.Core.Application.Abstractions;
 using TodayEcommerce.Core.Domain.Catalog;
 using TodayEcommerce.Core.Domain.Ordering;
 using TodayEcommerce.Core.Infrastructure.Caching;
+using TodayEcommerce.Core.Infrastructure.Outbox;
 using TodayEcommerce.Core.Infrastructure.Persistence;
 using TodayEcommerce.Core.Infrastructure.Persistence.Repositories;
 using TodayEcommerce.Core.Infrastructure.Search;
@@ -54,6 +55,8 @@ public static class DependencyInjection
         services.AddSingleton<ProductIndex>();
         services.AddSingleton<IProductSearchService, ElasticsearchProductSearchService>();
         services.AddHostedService<ProductSearchIndexInitializer>();
+
+        services.AddSingleton<OutboxProcessor>();
 
         return services;
     }

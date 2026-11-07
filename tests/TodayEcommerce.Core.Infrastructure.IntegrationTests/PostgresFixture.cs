@@ -23,6 +23,8 @@ public sealed class PostgresFixture : IAsyncLifetime
 
     public Task DisposeAsync() => _container.DisposeAsync().AsTask();
 
+    public string ConnectionString => _container.GetConnectionString();
+
     /// <summary>Each call = a separate session, like two different HTTP requests.</summary>
     public AppDbContext CreateDbContext() =>
         new(new DbContextOptionsBuilder<AppDbContext>()

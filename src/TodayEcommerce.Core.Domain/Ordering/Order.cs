@@ -1,5 +1,6 @@
 using TodayEcommerce.Core.Domain.Catalog;
 using TodayEcommerce.Core.Domain.Common;
+using TodayEcommerce.Core.Domain.Ordering.Events;
 using TodayEcommerce.Core.Domain.SharedKernel;
 
 namespace TodayEcommerce.Core.Domain.Ordering;
@@ -91,7 +92,12 @@ public sealed class Order : AggregateRoot<OrderId>
 
         Status = OrderStatus.Placed;
         PlacedAtUtc = utcNow;
-        // Step 5: raise OrderCreatedDomainEvent here (→ Outbox → stock decrease).
+
+        // → Outbox (same transaction as the order) → stock decrease, handled asynchronously.
+        Raise(new OrderPlacedDomainEvent(
+            Id,
+            CustomerId,
+            _items.Select(i => new OrderPlacedLine(i.ProductId, i.Quantity.Value)).ToList()));
     }
 
     public void Cancel()

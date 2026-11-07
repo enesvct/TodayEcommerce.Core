@@ -14,6 +14,8 @@ public sealed class FakeProductRepository : IProductRepository
 
     public int QueryCount { get; private set; }
 
+    public IReadOnlyCollection<Product> All => _products.Values;
+
     public void Seed(params Product[] products)
     {
         foreach (var product in products)
