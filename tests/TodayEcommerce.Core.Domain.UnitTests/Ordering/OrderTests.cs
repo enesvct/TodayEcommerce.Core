@@ -133,8 +133,8 @@ public class OrderTests
         placed.AddItem(ProductId.New(), "Phone", Try(100m), Quantity.Create(1));
         placed.Place(Now);
 
-        draft.Cancel();
-        placed.Cancel();
+        draft.Cancel("customer request");
+        placed.Cancel("customer request");
 
         Assert.Equal(OrderStatus.Cancelled, draft.Status);
         Assert.Equal(OrderStatus.Cancelled, placed.Status);
@@ -144,17 +144,78 @@ public class OrderTests
     public void Cancel_Twice_Throws()
     {
         var order = CreateDraftOrder();
-        order.Cancel();
+        order.Cancel("customer request");
 
-        Assert.Throws<DomainException>(() => order.Cancel());
+        Assert.Throws<DomainException>(() => order.Cancel("customer request"));
     }
 
     [Fact]
     public void CancelledOrder_CannotBeModified()
     {
         var order = CreateDraftOrder();
-        order.Cancel();
+        order.Cancel("customer request");
 
         Assert.Throws<DomainException>(() => order.AddItem(ProductId.New(), "Phone", Try(100m), Quantity.Create(1)));
+    }
+
+    private static Order CreatePlacedOrder()
+    {
+        var order = CreateDraftOrder();
+        order.AddItem(ProductId.New(), "Phone", Try(100m), Quantity.Create(1));
+        order.Place(Now);
+        return order;
+    }
+
+    [Fact]
+    public void Confirm_FromPlaced_MovesToConfirmed()
+    {
+        var order = CreatePlacedOrder();
+
+        order.Confirm();
+
+        Assert.Equal(OrderStatus.Confirmed, order.Status);
+    }
+
+    [Fact]
+    public void Confirm_IsOnlyAllowedOnce_SoARedeliveredEventCannotConfirmTwice()
+    {
+        var order = CreatePlacedOrder();
+        order.Confirm();
+
+        Assert.Throws<DomainException>(() => order.Confirm());
+    }
+
+    [Fact]
+    public void Confirm_FromDraft_Throws()
+    {
+        Assert.Throws<DomainException>(() => CreateDraftOrder().Confirm());
+    }
+
+    [Fact]
+    public void ConfirmedOrder_CannotBeCancelledDirectly()
+    {
+        var order = CreatePlacedOrder();
+        order.Confirm();
+
+        Assert.Throws<DomainException>(() => order.Cancel("changed my mind"));
+        Assert.Equal(OrderStatus.Confirmed, order.Status);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void Cancel_WithoutReason_Throws(string reason)
+    {
+        Assert.Throws<DomainException>(() => CreatePlacedOrder().Cancel(reason));
+    }
+
+    [Fact]
+    public void Cancel_StoresReason()
+    {
+        var order = CreatePlacedOrder();
+
+        order.Cancel("  Insufficient stock  ");
+
+        Assert.Equal("Insufficient stock", order.CancellationReason);
     }
 }

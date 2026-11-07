@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using TodayEcommerce.Core.Application.Abstractions;
 using TodayEcommerce.Core.Application.Common.Events;
 using TodayEcommerce.Core.Infrastructure.Persistence;
 
@@ -18,21 +19,35 @@ namespace TodayEcommerce.Core.Infrastructure.Outbox;
 ///   never handle the same message at the same time.
 /// - Handlers that write to the database share the message's transaction: their changes and the
 ///   "processed" mark commit together (effectively exactly-once for database side effects).
-/// - Poison messages: after <see cref="MaxAttempts"/> failures a message is no longer picked up and
-///   needs a human (LastError says why).
+/// - Exponential back-off: after each failure the message waits longer before the next try
+///   (5s, 15s, 30s ... 1h), so short outages recover quickly and long ones aren't hammered.
+/// - Poison messages: after <see cref="MaxAttempts"/> failures (~2 hours of retrying) a message is no longer
+///   picked up and needs a human (LastError says why; resetting attempt_count re-enables it).
 /// </remarks>
 public sealed class OutboxProcessor
 {
-    public const int MaxAttempts = 5;
+    /// <summary>Wait before attempt n+1, indexed by failures so far − 1. Sum ≈ 1h 55m.</summary>
+    private static readonly TimeSpan[] Backoff =
+    {
+        TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(15), TimeSpan.FromSeconds(30),
+        TimeSpan.FromMinutes(1), TimeSpan.FromMinutes(2), TimeSpan.FromMinutes(5),
+        TimeSpan.FromMinutes(15), TimeSpan.FromMinutes(30), TimeSpan.FromHours(1),
+    };
+
+    public const int MaxAttempts = 10;
 
     private readonly IServiceScopeFactory _scopeFactory;
+    private readonly IDateTimeProvider _clock;
     private readonly ILogger<OutboxProcessor> _logger;
 
-    public OutboxProcessor(IServiceScopeFactory scopeFactory, ILogger<OutboxProcessor> logger)
+    public OutboxProcessor(IServiceScopeFactory scopeFactory, IDateTimeProvider clock, ILogger<OutboxProcessor> logger)
     {
         _scopeFactory = scopeFactory;
+        _clock = clock;
         _logger = logger;
     }
+
+    public static TimeSpan DelayAfter(int failedAttempts) => Backoff[Math.Min(failedAttempts, Backoff.Length) - 1];
 
     /// <summary>Processes up to <paramref name="batchSize"/> pending messages. Returns how many succeeded.</summary>
     public async Task<int> ProcessAsync(int batchSize = 20, CancellationToken cancellationToken = default)
@@ -57,9 +72,12 @@ public sealed class OutboxProcessor
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
         // Oldest first, so events for the same aggregate are handled in the order they happened.
-        // A failed message simply waits for the next run (natural back-off).
+        // Failed messages are skipped until their back-off delay has passed.
+        var now = _clock.UtcNow;
         return await db.OutboxMessages.AsNoTracking()
-            .Where(m => m.ProcessedOnUtc == null && m.AttemptCount < MaxAttempts)
+            .Where(m => m.ProcessedOnUtc == null
+                        && m.AttemptCount < MaxAttempts
+                        && (m.NextAttemptOnUtc == null || m.NextAttemptOnUtc <= now))
             .OrderBy(m => m.OccurredOnUtc)
             .Select(m => m.Id)
             .Take(batchSize)
@@ -95,8 +113,9 @@ public sealed class OutboxProcessor
                 var domainEvent = OutboxSerializer.ToDomainEvent(message);
                 await dispatcher.DispatchAsync(domainEvent, cancellationToken);
 
-                message.ProcessedOnUtc = DateTime.UtcNow;
+                message.ProcessedOnUtc = _clock.UtcNow;
                 message.LastError = null;
+                message.NextAttemptOnUtc = null;
                 await db.SaveChangesAsync(cancellationToken); // handler DB changes + processed mark, one commit
                 await transaction.CommitAsync(cancellationToken);
                 return true;
@@ -128,15 +147,22 @@ public sealed class OutboxProcessor
             .Select(m => m.AttemptCount)
             .SingleAsync(cancellationToken) + 1;
 
+        var nextAttempt = _clock.UtcNow + DelayAfter(attempts);
+
         await db.OutboxMessages
             .Where(m => m.Id == messageId)
             .ExecuteUpdateAsync(s => s
                 .SetProperty(m => m.AttemptCount, attempts)
-                .SetProperty(m => m.LastError, error), cancellationToken);
+                .SetProperty(m => m.LastError, error)
+                .SetProperty(m => m.NextAttemptOnUtc, nextAttempt), cancellationToken);
 
         if (attempts >= MaxAttempts)
         {
             _logger.LogError("Outbox message {MessageId} gave up after {Attempts} attempts: {Error}", messageId, attempts, error);
+        }
+        else
+        {
+            _logger.LogInformation("Outbox message {MessageId}: attempt {Attempts} failed, next try at {NextAttempt:HH:mm:ss}", messageId, attempts, nextAttempt);
         }
     }
 }

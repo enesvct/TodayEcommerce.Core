@@ -28,6 +28,7 @@ internal sealed class OrderConfiguration : IEntityTypeConfiguration<Order>
 
         builder.Property(o => o.CreatedAtUtc);
         builder.Property(o => o.PlacedAtUtc);
+        builder.Property(o => o.CancellationReason).HasMaxLength(500);
 
         // Calculated from the lines on every read; not stored.
         builder.Ignore(o => o.Total);

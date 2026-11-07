@@ -1,3 +1,5 @@
+using Hangfire;
+using Hangfire.PostgreSql;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -57,6 +59,35 @@ public static class DependencyInjection
         services.AddHostedService<ProductSearchIndexInitializer>();
 
         services.AddSingleton<OutboxProcessor>();
+        services.AddTransient<ProcessOutboxJob>();
+
+        return services;
+    }
+
+    /// <summary>
+    /// Background job server (Hangfire). Separate from <see cref="AddInfrastructure"/> so tests and tools
+    /// can use the persistence layer without starting job workers.
+    /// </summary>
+    public static IServiceCollection AddBackgroundJobs(this IServiceCollection services, IConfiguration configuration)
+    {
+        var connectionString = configuration.GetConnectionString("Database")
+            ?? throw new InvalidOperationException("Connection string 'Database' is not configured.");
+
+        services.AddHangfire(config => config
+            .SetDataCompatibilityLevel(CompatibilityLevel.Version_180)
+            .UseSimpleAssemblyNameTypeSerializer()
+            .UseRecommendedSerializerSettings()
+            // Same PostgreSQL, own "hangfire" schema: no extra infrastructure to run.
+            .UsePostgreSqlStorage(options => options.UseNpgsqlConnection(connectionString)));
+
+        services.AddHangfireServer(options =>
+        {
+            options.WorkerCount = 2;
+            // How often the scheduler checks for due recurring jobs (default 15s, too slow for a 5s schedule).
+            options.SchedulePollingInterval = TimeSpan.FromSeconds(1);
+        });
+
+        services.AddHostedService<OutboxJobScheduler>();
 
         return services;
     }

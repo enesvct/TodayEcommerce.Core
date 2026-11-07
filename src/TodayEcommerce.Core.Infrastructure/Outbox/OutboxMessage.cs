@@ -21,5 +21,8 @@ public sealed class OutboxMessage
 
     public int AttemptCount { get; set; }
 
+    /// <summary>Null = try as soon as possible. After a failure: not before this time (exponential back-off).</summary>
+    public DateTime? NextAttemptOnUtc { get; set; }
+
     public string? LastError { get; set; }
 }

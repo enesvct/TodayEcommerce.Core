@@ -16,6 +16,8 @@ internal sealed class OutboxMessageConfiguration : IEntityTypeConfiguration<Outb
 
         // The processor only ever looks for pending messages: a partial index keeps that lookup fast
         // no matter how many millions of processed rows accumulate.
+        builder.Property(m => m.NextAttemptOnUtc);
+
         builder.HasIndex(m => m.OccurredOnUtc)
             .HasDatabaseName("ix_outbox_messages_pending")
             .HasFilter("processed_on_utc IS NULL");

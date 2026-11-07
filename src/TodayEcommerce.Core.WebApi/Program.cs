@@ -1,3 +1,4 @@
+using Hangfire;
 using TodayEcommerce.Core.Application;
 using TodayEcommerce.Core.Infrastructure;
 using TodayEcommerce.Core.WebApi.ErrorHandling;
@@ -7,6 +8,7 @@ var builder = WebApplication.CreateBuilder(args);
 // Composition root: the only place that knows every layer and wires interfaces to implementations.
 builder.Services.AddApplication();
 builder.Services.AddInfrastructure(builder.Configuration);
+builder.Services.AddBackgroundJobs(builder.Configuration);
 
 builder.Services.AddControllers();
 builder.Services.AddProblemDetails();
@@ -26,6 +28,10 @@ if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
+
+    // Job dashboard. Hangfire's default filter only allows requests from localhost;
+    // a deployed environment needs a real authorization filter here.
+    app.UseHangfireDashboard("/hangfire");
 }
 
 app.UseHttpsRedirection();

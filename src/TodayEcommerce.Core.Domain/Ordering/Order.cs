@@ -6,8 +6,8 @@ using TodayEcommerce.Core.Domain.SharedKernel;
 namespace TodayEcommerce.Core.Domain.Ordering;
 
 /// <summary>
-/// Customer order. Aggregate root that owns its <see cref="OrderItem"/>s and controls the
-/// Draft → Placed / Cancelled lifecycle.
+/// Customer order. Aggregate root that owns its <see cref="OrderItem"/>s and controls the lifecycle:
+/// Draft → Placed → Confirmed (stock reserved), or → Cancelled (from Draft or Placed).
 /// </summary>
 public sealed class Order : AggregateRoot<OrderId>
 {
@@ -18,6 +18,7 @@ public sealed class Order : AggregateRoot<OrderId>
     public OrderStatus Status { get; private set; }
     public DateTime CreatedAtUtc { get; }
     public DateTime? PlacedAtUtc { get; private set; }
+    public string? CancellationReason { get; private set; }
 
     /// <summary>Read-only view: callers can inspect lines but must use Order's methods to change them.</summary>
     public IReadOnlyCollection<OrderItem> Items => _items.AsReadOnly();
@@ -100,14 +101,36 @@ public sealed class Order : AggregateRoot<OrderId>
             _items.Select(i => new OrderPlacedLine(i.ProductId, i.Quantity.Value)).ToList()));
     }
 
-    public void Cancel()
+    /// <summary>Stock was reserved for every line: the order will be fulfilled.</summary>
+    public void Confirm()
+    {
+        EnsureStatus(OrderStatus.Placed, "confirm the order");
+
+        Status = OrderStatus.Confirmed;
+        Raise(new OrderConfirmedDomainEvent(Id, CustomerId));
+    }
+
+    public void Cancel(string reason)
     {
         if (Status == OrderStatus.Cancelled)
         {
             throw new DomainException("Order is already cancelled.");
         }
 
+        if (Status == OrderStatus.Confirmed)
+        {
+            // Stock is already reserved; undoing that is a separate business process (returns/refunds).
+            throw new DomainException("A confirmed order cannot be cancelled directly.");
+        }
+
+        if (string.IsNullOrWhiteSpace(reason))
+        {
+            throw new DomainException("A cancellation reason is required.");
+        }
+
         Status = OrderStatus.Cancelled;
+        CancellationReason = reason.Trim();
+        Raise(new OrderCancelledDomainEvent(Id, CustomerId, CancellationReason));
     }
 
     private void EnsureStatus(OrderStatus expected, string action)

@@ -34,6 +34,14 @@ public sealed class SwitchableSearchService : IProductSearchService
         throw new NotSupportedException();
 }
 
+/// <summary>A clock the test can move forward, so hours of back-off take no real time.</summary>
+public sealed class ControllableClock : IDateTimeProvider
+{
+    public DateTime UtcNow { get; set; } = DateTime.UtcNow;
+
+    public void Advance(TimeSpan by) => UtcNow += by;
+}
+
 public sealed class NoOpCache : ICacheService
 {
     public Task<T?> GetAsync<T>(string key, CancellationToken cancellationToken = default) where T : class => Task.FromResult<T?>(null);
@@ -46,6 +54,7 @@ public class OutboxTests
 {
     private readonly PostgresFixture _db;
     private readonly SwitchableSearchService _search = new();
+    private readonly ControllableClock _clock = new();
     private readonly ServiceProvider _services;
 
     public OutboxTests(PostgresFixture db)
@@ -69,6 +78,7 @@ public class OutboxTests
         services.AddInfrastructure(configuration);
         services.AddSingleton<IProductSearchService>(_search);
         services.AddSingleton<ICacheService, NoOpCache>();
+        services.AddSingleton<IDateTimeProvider>(_clock);
         _services = services.BuildServiceProvider();
     }
 
@@ -146,8 +156,9 @@ public class OutboxTests
         Assert.Contains("ServiceUnavailableException", afterFailure.LastError);
         Assert.False(_search.Indexed.ContainsKey(product.Id.Value));
 
-        // 2. Elasticsearch is back; the next run delivers the very same message.
+        // 2. Elasticsearch is back; once the back-off delay has passed, the same message is delivered.
         _search.IsDown = false;
+        _clock.Advance(OutboxProcessor.DelayAfter(1));
         await Processor.ProcessAsync(batchSize: 100);
 
         var afterRecovery = await OutboxMessageForAsync(product.Id);
@@ -169,6 +180,83 @@ public class OutboxTests
     }
 
     [Fact]
+    public async Task LastUnit_TwoPlacedOrders_ThroughTheRealOutbox_OneConfirmedOneCancelled()
+    {
+        var phone = await CreateProductAsync("Son Telefon");
+        await using (var db = _db.CreateDbContext())
+        {
+            (await db.Products.SingleAsync(p => p.Id == phone.Id)).RemoveStock(Quantity.Create(1)); // stock 2 → 1
+            await db.SaveChangesAsync();
+        }
+
+        var orderIds = new List<Domain.Ordering.OrderId>();
+        foreach (var _ in new[] { "Ayse", "Mehmet" })
+        {
+            var order = Domain.Ordering.Order.Create(new Domain.Ordering.CustomerId(Guid.NewGuid()), "TRY", DateTime.UtcNow);
+            order.AddItem(phone.Id, phone.Name, phone.Price, Quantity.Create(1));
+            order.Place(DateTime.UtcNow);
+            await using var db = _db.CreateDbContext();
+            db.Orders.Add(order);
+            await db.SaveChangesAsync(); // order + OrderPlaced outbox row, one commit
+            orderIds.Add(order.Id);
+        }
+
+        await Processor.ProcessAsync(batchSize: 100);
+
+        await using var check = _db.CreateDbContext();
+        var statuses = await check.Orders.AsNoTracking()
+            .Where(o => orderIds.Contains(o.Id))
+            .OrderBy(o => o.PlacedAtUtc)
+            .Select(o => o.Status)
+            .ToListAsync();
+        Assert.Equal(new[] { Domain.Ordering.OrderStatus.Confirmed, Domain.Ordering.OrderStatus.Cancelled }, statuses);
+        Assert.Equal(0, (await check.Products.AsNoTracking().SingleAsync(p => p.Id == phone.Id)).StockQuantity);
+    }
+
+    [Fact]
+    public async Task FailedMessage_IsNotRetriedBeforeItsBackoffDelay()
+    {
+        var product = await CreateProductAsync("Sabirli Urun");
+        _search.IsDown = true;
+        await Processor.ProcessAsync(batchSize: 100); // attempt 1 fails → wait 5s
+
+        await Processor.ProcessAsync(batchSize: 100); // runs again immediately (like the 5s Hangfire tick)
+        Assert.Equal(1, (await OutboxMessageForAsync(product.Id)).AttemptCount); // skipped: too early
+
+        _clock.Advance(OutboxProcessor.DelayAfter(1));
+        await Processor.ProcessAsync(batchSize: 100);
+        var message = await OutboxMessageForAsync(product.Id);
+        Assert.Equal(2, message.AttemptCount);                                     // retried now
+        Assert.Equal(_clock.UtcNow + OutboxProcessor.DelayAfter(2), message.NextAttemptOnUtc!.Value, TimeSpan.FromSeconds(1));
+    }
+
+    [Fact]
+    public async Task SurvivesAThirtySecondOutage_TheBugFoundInTheLiveDemo()
+    {
+        var product = await CreateProductAsync("Kamera K");
+        _search.IsDown = true;
+
+        // Hangfire ticks every 5s for 30s while Elasticsearch restarts.
+        for (var second = 0; second < 30; second += 5)
+        {
+            await Processor.ProcessAsync(batchSize: 100);
+            _clock.Advance(TimeSpan.FromSeconds(5));
+        }
+
+        _search.IsDown = false;
+        for (var second = 0; second < 60; second += 5)
+        {
+            await Processor.ProcessAsync(batchSize: 100);
+            _clock.Advance(TimeSpan.FromSeconds(5));
+        }
+
+        var message = await OutboxMessageForAsync(product.Id);
+        Assert.NotNull(message.ProcessedOnUtc);   // with 5 fixed retries this message had already been given up
+        Assert.True(message.AttemptCount < 5);    // back-off spent few attempts during the outage
+        Assert.True(_search.Indexed.ContainsKey(product.Id.Value));
+    }
+
+    [Fact]
     public async Task PoisonMessage_StopsBeingPickedUp_AfterMaxAttempts()
     {
         var product = await CreateProductAsync("Bozuk Urun");
@@ -177,6 +265,7 @@ public class OutboxTests
         for (var i = 0; i < OutboxProcessor.MaxAttempts + 2; i++)
         {
             await Processor.ProcessAsync(batchSize: 100);
+            _clock.Advance(TimeSpan.FromHours(2)); // longer than any back-off step
         }
 
         var message = await OutboxMessageForAsync(product.Id);

@@ -15,6 +15,7 @@ public sealed record OrderDto(
     string Currency,
     DateTime CreatedAtUtc,
     DateTime? PlacedAtUtc,
+    string? CancellationReason,
     IReadOnlyList<OrderItemDto> Items);
 
 public sealed record OrderItemDto(
@@ -57,6 +58,7 @@ internal sealed class GetOrderByIdQueryHandler : IRequestHandler<GetOrderByIdQue
             order.Currency,
             order.CreatedAtUtc,
             order.PlacedAtUtc,
+            order.CancellationReason,
             order.Items
                 .Select(i => new OrderItemDto(
                     i.ProductId.Value,

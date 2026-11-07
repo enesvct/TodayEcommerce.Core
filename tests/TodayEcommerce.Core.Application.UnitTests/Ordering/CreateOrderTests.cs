@@ -92,13 +92,17 @@ public class CreateOrderTests
     }
 
     [Fact]
-    public async Task PlacingOrder_DoesNotDecreaseStock_Yet()
+    public async Task PlacingOrder_DoesNotDecreaseStockInsideTheRequest_TheOrderPlacedEventDoes()
     {
-        // Documents the current design: stock is decreased asynchronously in Step 5 (Outbox).
         var phone = SeedProduct(stock: 10);
 
-        await _host.Mediator.Send(new CreateOrderCommand(CustomerId, new[] { new CreateOrderItem(phone.Id.Value, 3) }));
+        var orderId = await _host.Mediator.Send(new CreateOrderCommand(CustomerId, new[] { new CreateOrderItem(phone.Id.Value, 3) }));
 
-        Assert.Equal(10, phone.StockQuantity);
+        Assert.Equal(10, phone.StockQuantity); // the request only placed the order
+
+        await _host.DispatchDomainEventsAsync(); // = outbox processor
+
+        Assert.Equal(7, phone.StockQuantity);
+        Assert.Equal(OrderStatus.Confirmed, _host.Orders.Added.Single(o => o.Id.Value == orderId).Status);
     }
 }
