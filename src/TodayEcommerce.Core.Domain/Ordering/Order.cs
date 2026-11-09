@@ -112,7 +112,7 @@ public sealed class Order : AggregateRoot<OrderId>
 
     /// <summary>
     /// Cancels from Draft, Placed or Confirmed (not yet shipped — there is no shipping state yet).
-    /// A Confirmed order had its stock reserved, so the event tells the catalog to put it back.
+    /// Returning reserved stock is the Catalog's job: it reacts to the cancellation through Ordering's contracts.
     /// </summary>
     public void Cancel(string reason)
     {
@@ -126,14 +126,9 @@ public sealed class Order : AggregateRoot<OrderId>
             throw new DomainException("A cancellation reason is required.");
         }
 
-        // Decide BEFORE changing the status: only a Confirmed order has stock reserved.
-        var stockToRelease = Status == OrderStatus.Confirmed
-            ? _items.Select(i => new ReservedStockLine(i.ProductId, i.Quantity.Value)).ToList()
-            : new List<ReservedStockLine>();
-
         Status = OrderStatus.Cancelled;
         CancellationReason = reason.Trim();
-        Raise(new OrderCancelledDomainEvent(Id, CustomerId, CancellationReason, stockToRelease));
+        Raise(new OrderCancelledDomainEvent(Id, CustomerId, CancellationReason));
     }
 
     private void EnsureStatus(OrderStatus expected, string action)

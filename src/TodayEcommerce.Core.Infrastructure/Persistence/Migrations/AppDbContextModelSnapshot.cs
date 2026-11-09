@@ -53,6 +53,42 @@ namespace TodayEcommerce.Core.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("TodayEcommerce.Core.Domain.Catalog.StockReservation", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("OrderId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("order_id");
+
+                    b.Property<DateTime?>("ReleasedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("released_at_utc");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("status");
+
+                    b.Property<uint>("Version")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
+                    b.HasKey("Id")
+                        .HasName("pk_stock_reservations");
+
+                    b.HasIndex("OrderId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_stock_reservations_order_id");
+
+                    b.ToTable("stock_reservations", (string)null);
+                });
+
             modelBuilder.Entity("TodayEcommerce.Core.Domain.Ordering.Order", b =>
                 {
                     b.Property<Guid>("Id")
@@ -224,6 +260,45 @@ namespace TodayEcommerce.Core.Infrastructure.Persistence.Migrations
 
                     b.Navigation("Price")
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("TodayEcommerce.Core.Domain.Catalog.StockReservation", b =>
+                {
+                    b.OwnsMany("TodayEcommerce.Core.Domain.Catalog.ReservedItem", "Items", b1 =>
+                        {
+                            b1.Property<int>("id")
+                                .ValueGeneratedOnAdd()
+                                .HasColumnType("integer")
+                                .HasColumnName("id");
+
+                            NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b1.Property<int>("id"));
+
+                            b1.Property<Guid>("ProductId")
+                                .HasColumnType("uuid")
+                                .HasColumnName("product_id");
+
+                            b1.Property<int>("Quantity")
+                                .HasColumnType("integer")
+                                .HasColumnName("quantity");
+
+                            b1.Property<Guid>("stock_reservation_id")
+                                .HasColumnType("uuid")
+                                .HasColumnName("stock_reservation_id");
+
+                            b1.HasKey("id")
+                                .HasName("pk_stock_reservation_items");
+
+                            b1.HasIndex("stock_reservation_id")
+                                .HasDatabaseName("ix_stock_reservation_items_stock_reservation_id");
+
+                            b1.ToTable("stock_reservation_items", (string)null);
+
+                            b1.WithOwner()
+                                .HasForeignKey("stock_reservation_id")
+                                .HasConstraintName("fk_stock_reservation_items_stock_reservations_stock_reservatio");
+                        });
+
+                    b.Navigation("Items");
                 });
 
             modelBuilder.Entity("TodayEcommerce.Core.Domain.Ordering.Order", b =>

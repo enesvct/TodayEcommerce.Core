@@ -156,3 +156,13 @@ public sealed class FakeIntegrationEventPublisher : IIntegrationEventPublisher
         return taken;
     }
 }
+
+public sealed class FakeStockReservationRepository : IStockReservationRepository
+{
+    public List<StockReservation> All { get; } = new();
+
+    public Task<StockReservation?> GetByOrderIdAsync(Guid orderId, CancellationToken cancellationToken = default) =>
+        Task.FromResult(All.SingleOrDefault(r => r.OrderId == orderId));
+
+    public void Add(StockReservation reservation) => All.Add(reservation);
+}

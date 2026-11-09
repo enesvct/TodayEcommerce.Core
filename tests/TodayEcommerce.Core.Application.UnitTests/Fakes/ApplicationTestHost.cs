@@ -25,6 +25,7 @@ public sealed class ApplicationTestHost
     public FakeCurrentUser CurrentUser { get; } = new();
     public FakeIdempotencyStore Idempotency { get; } = new();
     public FakeIntegrationEventPublisher IntegrationEvents { get; } = new();
+    public FakeStockReservationRepository Reservations { get; } = new();
 
     public IMediator Mediator { get; }
 
@@ -42,33 +43,54 @@ public sealed class ApplicationTestHost
         services.AddSingleton<ICurrentUser>(CurrentUser);
         services.AddSingleton<IIdempotencyStore>(Idempotency);
         services.AddSingleton<IIntegrationEventPublisher>(IntegrationEvents);
+        services.AddSingleton<IStockReservationRepository>(Reservations);
 
         _provider = services.BuildServiceProvider();
         Mediator = _provider.GetRequiredService<IMediator>();
     }
 
     /// <summary>
-    /// Stands in for "outbox → processor": dispatches every pending event of the in-memory aggregates
-    /// to the real handlers, synchronously. In production this happens asynchronously after the commit.
+    /// Stands in for the outbox job: delivers every pending event (domain events of the in-memory aggregates and
+    /// published integration events) to the real handlers — and keeps going while those handlers cause new events,
+    /// like OutboxProcessor.DrainAsync. In production this happens asynchronously after the commit.
     /// </summary>
-    public async Task DispatchDomainEventsAsync()
-    {
-        var aggregates = Products.All.Cast<IHasDomainEvents>().Concat(Orders.Added).ToList();
-        var events = aggregates.SelectMany(a => a.DomainEvents).Cast<object>().ToList();
-        aggregates.ForEach(a => a.ClearDomainEvents());
-        events.AddRange(IntegrationEvents.TakePending()); // published since the last round
+    public Task DispatchDomainEventsAsync() => DrainAsync(Array.Empty<object>());
 
-        await DispatchAsync(events);
+    /// <summary>Delivers the given events first (e.g. a redelivery, or a deliberately out-of-order message), then drains.</summary>
+    public Task DispatchAsync(IEnumerable<object> events) => DrainAsync(events);
+
+    private async Task DrainAsync(IEnumerable<object> first)
+    {
+        var batch = first.ToList();
+        for (var round = 0; round < 20; round++)
+        {
+            batch.AddRange(CollectPending());
+            if (batch.Count == 0)
+            {
+                return;
+            }
+
+            using (var scope = _provider.CreateScope())
+            {
+                var dispatcher = scope.ServiceProvider.GetRequiredService<IEventDispatcher>();
+                foreach (var message in batch)
+                {
+                    await dispatcher.DispatchAsync(message, CancellationToken.None);
+                }
+            }
+
+            batch = new List<object>();
+        }
+
+        throw new InvalidOperationException("Events keep causing events after 20 rounds: a loop?");
     }
 
-    /// <summary>Dispatches the given events (e.g. to simulate the outbox delivering an event twice).</summary>
-    public async Task DispatchAsync(IEnumerable<object> events)
+    private List<object> CollectPending()
     {
-        using var scope = _provider.CreateScope();
-        var dispatcher = scope.ServiceProvider.GetRequiredService<IEventDispatcher>();
-        foreach (var domainEvent in events)
-        {
-            await dispatcher.DispatchAsync(domainEvent, CancellationToken.None);
-        }
+        var aggregates = Products.All.Cast<IHasDomainEvents>().Concat(Orders.Added).Concat(Reservations.All).ToList();
+        var events = aggregates.SelectMany(a => a.DomainEvents).Cast<object>().ToList();
+        aggregates.ForEach(a => a.ClearDomainEvents());
+        events.AddRange(IntegrationEvents.TakePending());
+        return events;
     }
 }

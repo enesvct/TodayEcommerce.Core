@@ -257,7 +257,7 @@ public class OutboxTests
             orderIds.Add(order.Id);
         }
 
-        await Processor.ProcessAsync(batchSize: 100);
+        await Processor.DrainAsync(batchSize: 100); // the whole saga: placed → reserved → confirmed
 
         await using var check = _db.CreateDbContext();
         var statuses = await check.Orders.AsNoTracking()
@@ -353,7 +353,7 @@ public class OutboxTests
     {
         var phone = await CreateProductAsync("Iade Telefonu"); // stock 2
         var orderId = await PlaceOrderAsync(phone, 2);
-        await Processor.ProcessAsync(batchSize: 100);
+        await Processor.DrainAsync(batchSize: 100); // the whole saga: placed → reserved → confirmed
         Assert.Equal((Domain.Ordering.OrderStatus.Confirmed, 0), await StateAsync(orderId, phone.Id));
 
         await using (var db = _db.CreateDbContext())
@@ -361,9 +361,15 @@ public class OutboxTests
             (await db.Orders.SingleAsync(o => o.Id == orderId)).Cancel("vazgectim");
             await db.SaveChangesAsync();
         }
-        await Processor.ProcessAsync(batchSize: 100);
+        await Processor.DrainAsync(batchSize: 100); // the whole saga: placed → reserved → confirmed
 
         Assert.Equal((Domain.Ordering.OrderStatus.Cancelled, 2), await StateAsync(orderId, phone.Id));
+
+        // The Catalog's own record, persisted with its items: reserved once, released once.
+        await using var check = _db.CreateDbContext();
+        var reservation = await check.StockReservations.AsNoTracking().SingleAsync(r => r.OrderId == orderId.Value);
+        Assert.Equal(StockReservationStatus.Released, reservation.Status);
+        Assert.Equal(2, Assert.Single(reservation.Items).Quantity);
     }
 
     [Fact]
@@ -377,7 +383,7 @@ public class OutboxTests
         var seenByRequest = await request.Orders.SingleAsync(o => o.Id == orderId);
 
         // ...meanwhile the outbox reserves stock and confirms the same order.
-        await Processor.ProcessAsync(batchSize: 100);
+        await Processor.DrainAsync(batchSize: 100); // the whole saga: placed → reserved → confirmed
 
         // The request now saves its stale copy: the row version no longer matches → 409, nothing written.
         seenByRequest.Cancel("vazgectim");
@@ -390,7 +396,7 @@ public class OutboxTests
             (await retry.Orders.SingleAsync(o => o.Id == orderId)).Cancel("vazgectim");
             await retry.SaveChangesAsync();
         }
-        await Processor.ProcessAsync(batchSize: 100);
+        await Processor.DrainAsync(batchSize: 100); // the whole saga: placed → reserved → confirmed
 
         Assert.Equal((Domain.Ordering.OrderStatus.Cancelled, 2), await StateAsync(orderId, phone.Id));
     }
@@ -413,14 +419,14 @@ public class OutboxTests
     public async Task TheTraceSurvivesEveryHop_EventsRaisedByHandlersCarryItToo()
     {
         var phone = await CreateProductAsync("Iz Telefonu");
-        await Processor.ProcessAsync(batchSize: 100);
+        await Processor.DrainAsync(batchSize: 100); // the whole saga: placed → reserved → confirmed
 
         using var request = new System.Diagnostics.Activity("POST /api/orders").Start();
         var requestTraceId = request.TraceId.ToString();
         var orderId = await PlaceOrderAsync(phone, 1); // hop 1: OrderPlaced, written by the request
         request.Stop();
 
-        await Processor.ProcessAsync(batchSize: 100); // hop 2: reservation raises OrderConfirmed
+        await Processor.DrainAsync(batchSize: 100); // the whole saga: placed → reserved → confirmed // hop 2: reservation raises OrderConfirmed
 
         await using var db = _db.CreateDbContext();
         var confirmed = (await db.OutboxMessages.AsNoTracking()

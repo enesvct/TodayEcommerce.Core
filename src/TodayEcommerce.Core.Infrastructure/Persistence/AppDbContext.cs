@@ -23,6 +23,7 @@ public sealed class AppDbContext : DbContext, IUnitOfWork
 
     public DbSet<Product> Products => Set<Product>();
     public DbSet<Order> Orders => Set<Order>();
+    public DbSet<StockReservation> StockReservations => Set<StockReservation>();
     public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
     internal DbSet<IdempotencyRecordEntity> IdempotencyRecords => Set<IdempotencyRecordEntity>();
 
