@@ -4,12 +4,14 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using TodayEcommerce.Core.Application.Abstractions;
+using TodayEcommerce.Core.Application.Ordering.Queries.GetMyOrders;
 using TodayEcommerce.Core.Domain.Catalog;
 using TodayEcommerce.Core.Domain.Ordering;
 using TodayEcommerce.Core.Infrastructure.Caching;
 using TodayEcommerce.Core.Infrastructure.Idempotency;
 using TodayEcommerce.Core.Infrastructure.Outbox;
 using TodayEcommerce.Core.Infrastructure.Persistence;
+using TodayEcommerce.Core.Infrastructure.Persistence.Queries;
 using TodayEcommerce.Core.Infrastructure.Persistence.Repositories;
 using TodayEcommerce.Core.Infrastructure.Search;
 using TodayEcommerce.Core.Infrastructure.Services;
@@ -37,6 +39,7 @@ public static class DependencyInjection
         services.AddScoped<IProductRepository, ProductRepository>();
         services.AddScoped<IOrderRepository, OrderRepository>();
         services.AddScoped<IIdempotencyStore, IdempotencyStore>();
+        services.AddScoped<IOrderQueries, OrderQueries>();
 
         services.AddSingleton<IDateTimeProvider, SystemDateTimeProvider>();
 

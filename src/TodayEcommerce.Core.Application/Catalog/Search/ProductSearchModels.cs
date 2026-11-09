@@ -32,5 +32,3 @@ public sealed record ProductSearchCriteria(
     int PageSize);
 
 public sealed record ProductSearchHit(ProductSearchDocument Product, double? Score);
-
-public sealed record PagedResult<T>(IReadOnlyList<T> Items, long TotalCount, int Page, int PageSize);

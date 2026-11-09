@@ -2,6 +2,8 @@ using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using TodayEcommerce.Core.Application.Ordering.Commands.CreateOrder;
+using TodayEcommerce.Core.Application.Common;
+using TodayEcommerce.Core.Application.Ordering.Queries.GetMyOrders;
 using TodayEcommerce.Core.Application.Ordering.Queries.GetOrderById;
 
 namespace TodayEcommerce.Core.WebApi.Controllers;
@@ -36,6 +38,15 @@ public sealed class OrdersController : ControllerBase
 
     /// <summary>HTTP body shape. The key travels as a header, the customer comes from the token.</summary>
     public sealed record CreateOrderRequest(IReadOnlyList<CreateOrderItem> Items);
+
+    /// <summary>The signed-in customer's orders, newest first. Example: /api/orders?page=2&amp;pageSize=10</summary>
+    [HttpGet]
+    [ProducesResponseType(typeof(PagedResult<OrderSummaryDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> GetMine([FromQuery] GetMyOrdersQuery query, CancellationToken cancellationToken)
+    {
+        return Ok(await _sender.Send(query, cancellationToken));
+    }
 
     [HttpGet("{id:guid}")]
     [ProducesResponseType(typeof(OrderDto), StatusCodes.Status200OK)]

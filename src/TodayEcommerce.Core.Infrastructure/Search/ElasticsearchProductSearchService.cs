@@ -1,11 +1,12 @@
 using System.Net.Http.Json;
-using System.Text;
-using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Text.Json;
+using System.Text;
 using Microsoft.Extensions.Logging;
 using TodayEcommerce.Core.Application.Abstractions;
 using TodayEcommerce.Core.Application.Catalog.Search;
 using TodayEcommerce.Core.Application.Common.Exceptions;
+using TodayEcommerce.Core.Application.Common;
 
 namespace TodayEcommerce.Core.Infrastructure.Search;
 

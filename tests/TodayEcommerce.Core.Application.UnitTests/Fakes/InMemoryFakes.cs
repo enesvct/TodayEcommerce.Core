@@ -1,4 +1,5 @@
 using TodayEcommerce.Core.Application.Abstractions;
+using TodayEcommerce.Core.Application.Common;
 using TodayEcommerce.Core.Domain.Catalog;
 using TodayEcommerce.Core.Domain.Ordering;
 
@@ -101,12 +102,12 @@ public sealed class FakeProductSearchService : IProductSearchService
         return Task.CompletedTask;
     }
 
-    public Task<Application.Catalog.Search.PagedResult<Application.Catalog.Search.ProductSearchHit>> SearchAsync(
+    public Task<Application.Common.PagedResult<Application.Catalog.Search.ProductSearchHit>> SearchAsync(
         Application.Catalog.Search.ProductSearchCriteria criteria,
         CancellationToken cancellationToken = default)
     {
         LastCriteria = criteria;
-        return Task.FromResult(new Application.Catalog.Search.PagedResult<Application.Catalog.Search.ProductSearchHit>(
+        return Task.FromResult(new Application.Common.PagedResult<Application.Catalog.Search.ProductSearchHit>(
             Array.Empty<Application.Catalog.Search.ProductSearchHit>(), 0, criteria.Page, criteria.PageSize));
     }
 }

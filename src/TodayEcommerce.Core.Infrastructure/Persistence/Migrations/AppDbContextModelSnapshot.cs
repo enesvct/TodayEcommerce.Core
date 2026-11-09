@@ -98,8 +98,9 @@ namespace TodayEcommerce.Core.Infrastructure.Persistence.Migrations
                     b.HasKey("Id")
                         .HasName("pk_orders");
 
-                    b.HasIndex("CustomerId")
-                        .HasDatabaseName("ix_orders_customer_id");
+                    b.HasIndex("CustomerId", "CreatedAtUtc")
+                        .IsDescending(false, true)
+                        .HasDatabaseName("ix_orders_customer_id_created_at_utc");
 
                     b.ToTable("orders", (string)null);
                 });

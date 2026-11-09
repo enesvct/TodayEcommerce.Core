@@ -1,12 +1,13 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using TodayEcommerce.Core.Application;
 using TodayEcommerce.Core.Application.Abstractions;
 using TodayEcommerce.Core.Application.Catalog.Search;
 using TodayEcommerce.Core.Application.Common.Exceptions;
-using TodayEcommerce.Core.Domain.Catalog;
+using TodayEcommerce.Core.Application.Common;
+using TodayEcommerce.Core.Application;
 using TodayEcommerce.Core.Domain.Catalog.Events;
+using TodayEcommerce.Core.Domain.Catalog;
 using TodayEcommerce.Core.Domain.SharedKernel;
 using TodayEcommerce.Core.Infrastructure.Outbox;
 using TodayEcommerce.Core.Infrastructure.Persistence;

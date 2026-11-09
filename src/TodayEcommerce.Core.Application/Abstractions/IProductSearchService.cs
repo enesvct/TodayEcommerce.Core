@@ -1,4 +1,5 @@
 using TodayEcommerce.Core.Application.Catalog.Search;
+using TodayEcommerce.Core.Application.Common;
 
 namespace TodayEcommerce.Core.Application.Abstractions;
 

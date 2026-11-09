@@ -19,7 +19,10 @@ internal sealed class OrderConfiguration : IEntityTypeConfiguration<Order>
 
         builder.Property(o => o.CustomerId)
             .HasConversion(id => id.Value, value => new CustomerId(value));
-        builder.HasIndex(o => o.CustomerId);
+
+        // "My orders, newest first": the index both finds the customer's rows and already holds them sorted,
+        // so the page is read straight from the index instead of sorting every order of the customer.
+        builder.HasIndex(o => new { o.CustomerId, o.CreatedAtUtc }).IsDescending(false, true);
 
         builder.Property(o => o.Currency).HasMaxLength(3).IsFixedLength();
 

@@ -6,6 +6,7 @@ using TodayEcommerce.Core.Application.Catalog.Commands.CreateProduct;
 using TodayEcommerce.Core.Application.Catalog.Queries.GetProductById;
 using TodayEcommerce.Core.Application.Catalog.Queries.SearchProducts;
 using TodayEcommerce.Core.Application.Catalog.Search;
+using TodayEcommerce.Core.Application.Common;
 using TodayEcommerce.Core.WebApi.Authentication;
 
 namespace TodayEcommerce.Core.WebApi.Controllers;

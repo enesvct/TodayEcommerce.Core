@@ -2,6 +2,7 @@ using FluentValidation;
 using MediatR;
 using TodayEcommerce.Core.Application.Abstractions;
 using TodayEcommerce.Core.Application.Catalog.Search;
+using TodayEcommerce.Core.Application.Common;
 
 namespace TodayEcommerce.Core.Application.Catalog.Queries.SearchProducts;
 
