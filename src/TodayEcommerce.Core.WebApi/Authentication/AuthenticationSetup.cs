@@ -2,6 +2,7 @@ using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.IdentityModel.Tokens;
+using TodayEcommerce.Core.Application.Abstractions;
 
 namespace TodayEcommerce.Core.WebApi.Authentication;
 
@@ -49,6 +50,9 @@ public static class AuthenticationSetup
             // Forgetting an attribute then closes an endpoint instead of opening it.
             .SetFallbackPolicy(new AuthorizationPolicyBuilder().RequireAuthenticatedUser().Build())
             .AddPolicy(Policies.Admin, policy => policy.RequireRole(Roles.Admin));
+
+        services.AddHttpContextAccessor();
+        services.AddScoped<ICurrentUser, HttpContextCurrentUser>();
 
         return services;
     }

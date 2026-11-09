@@ -34,7 +34,7 @@ POST {{host}}/api/orders
 Authorization: Bearer {{ayseToken}}
 Content-Type: application/json
 
-{ "customerId": "11111111-1111-1111-1111-111111111111", "items": [ { "productId": "{{productId}}", "quantity": 2 } ] }
+{ "items": [ { "productId": "{{productId}}", "quantity": 2 } ] }
 
 ###
 @orderId = 00000000-0000-0000-0000-000000000000
@@ -48,20 +48,20 @@ POST {{host}}/api/orders
 Authorization: Bearer {{ayseToken}}
 Content-Type: application/json
 
-{ "customerId": "11111111-1111-1111-1111-111111111111", "items": [] }
+{ "items": [] }
 
 ### 422 — more than in stock
 POST {{host}}/api/orders
 Authorization: Bearer {{ayseToken}}
 Content-Type: application/json
 
-{ "customerId": "11111111-1111-1111-1111-111111111111", "items": [ { "productId": "{{productId}}", "quantity": 99 } ] }
+{ "items": [ { "productId": "{{productId}}", "quantity": 99 } ] }
 
 ### 401 — no token
 POST {{host}}/api/orders
 Content-Type: application/json
 
-{ "customerId": "11111111-1111-1111-1111-111111111111", "items": [] }
+{ "items": [] }
 
 ### 403 — signed in, but not an admin
 POST {{host}}/api/products

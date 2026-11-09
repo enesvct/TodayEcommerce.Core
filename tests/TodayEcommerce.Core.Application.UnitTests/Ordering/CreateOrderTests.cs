@@ -11,7 +11,6 @@ namespace TodayEcommerce.Core.Application.UnitTests.Ordering;
 public class CreateOrderTests
 {
     private readonly ApplicationTestHost _host = new();
-    private static readonly Guid CustomerId = Guid.NewGuid();
 
     private Product SeedProduct(string name = "Phone", decimal price = 1_000m, int stock = 10)
     {
@@ -23,7 +22,7 @@ public class CreateOrderTests
     [Fact]
     public async Task EmptyItems_IsRejectedByValidation_BeforeTouchingTheDatabase()
     {
-        var command = new CreateOrderCommand(CustomerId, Array.Empty<CreateOrderItem>());
+        var command = new CreateOrderCommand(Array.Empty<CreateOrderItem>());
 
         var ex = await Assert.ThrowsAsync<ValidationException>(() => _host.Mediator.Send(command));
 
@@ -35,13 +34,10 @@ public class CreateOrderTests
     [Fact]
     public async Task MultipleProblems_AreAllReportedAtOnce()
     {
-        var command = new CreateOrderCommand(
-            Guid.Empty,
-            new[] { new CreateOrderItem(Guid.Empty, 0) });
+        var command = new CreateOrderCommand(new[] { new CreateOrderItem(Guid.Empty, 0) });
 
         var ex = await Assert.ThrowsAsync<ValidationException>(() => _host.Mediator.Send(command));
 
-        Assert.Contains("CustomerId", ex.Errors.Keys);
         Assert.Contains("Items[0].ProductId", ex.Errors.Keys);
         Assert.Contains("Items[0].Quantity", ex.Errors.Keys);
     }
@@ -51,7 +47,7 @@ public class CreateOrderTests
     {
         var phone = SeedProduct("Phone", 1_000m);
         var @case = SeedProduct("Case", 50m);
-        var command = new CreateOrderCommand(CustomerId, new[]
+        var command = new CreateOrderCommand(new[]
         {
             new CreateOrderItem(phone.Id.Value, 2),
             new CreateOrderItem(@case.Id.Value, 1),
@@ -71,7 +67,7 @@ public class CreateOrderTests
     [Fact]
     public async Task UnknownProduct_ThrowsNotFound_AndSavesNothing()
     {
-        var command = new CreateOrderCommand(CustomerId, new[] { new CreateOrderItem(Guid.NewGuid(), 1) });
+        var command = new CreateOrderCommand(new[] { new CreateOrderItem(Guid.NewGuid(), 1) });
 
         await Assert.ThrowsAsync<NotFoundException>(() => _host.Mediator.Send(command));
 
@@ -83,7 +79,7 @@ public class CreateOrderTests
     public async Task InsufficientStock_ThrowsDomainException_AndSavesNothing()
     {
         var phone = SeedProduct(stock: 1);
-        var command = new CreateOrderCommand(CustomerId, new[] { new CreateOrderItem(phone.Id.Value, 2) });
+        var command = new CreateOrderCommand(new[] { new CreateOrderItem(phone.Id.Value, 2) });
 
         await Assert.ThrowsAsync<DomainException>(() => _host.Mediator.Send(command));
 
@@ -96,7 +92,7 @@ public class CreateOrderTests
     {
         var phone = SeedProduct(stock: 10);
 
-        var orderId = await _host.Mediator.Send(new CreateOrderCommand(CustomerId, new[] { new CreateOrderItem(phone.Id.Value, 3) }));
+        var orderId = await _host.Mediator.Send(new CreateOrderCommand(new[] { new CreateOrderItem(phone.Id.Value, 3) }));
 
         Assert.Equal(10, phone.StockQuantity); // the request only placed the order
 
@@ -104,5 +100,17 @@ public class CreateOrderTests
 
         Assert.Equal(7, phone.StockQuantity);
         Assert.Equal(OrderStatus.Confirmed, _host.Orders.Added.Single(o => o.Id.Value == orderId).Status);
+    }
+
+    [Fact]
+    public async Task Order_BelongsToTheSignedInUser_NotToAnyoneNamedInTheRequest()
+    {
+        var phone = SeedProduct();
+        var ayse = Guid.NewGuid();
+        _host.CurrentUser.UserId = ayse;
+
+        await _host.Mediator.Send(new CreateOrderCommand(new[] { new CreateOrderItem(phone.Id.Value, 1) }));
+
+        Assert.Equal(ayse, Assert.Single(_host.Orders.Added).CustomerId.Value);
     }
 }

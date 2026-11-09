@@ -115,3 +115,9 @@ public sealed class FixedDateTimeProvider : IDateTimeProvider
 {
     public DateTime UtcNow { get; set; } = new(2026, 11, 6, 10, 0, 0, DateTimeKind.Utc);
 }
+
+/// <summary>The "signed-in" user of a test; switch <see cref="UserId"/> to act as someone else.</summary>
+public sealed class FakeCurrentUser : ICurrentUser
+{
+    public Guid UserId { get; set; } = Guid.NewGuid();
+}

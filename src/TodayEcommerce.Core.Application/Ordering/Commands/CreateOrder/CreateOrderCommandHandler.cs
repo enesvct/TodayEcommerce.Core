@@ -16,17 +16,20 @@ internal sealed class CreateOrderCommandHandler : IRequestHandler<CreateOrderCom
     private readonly IOrderRepository _orderRepository;
     private readonly IUnitOfWork _unitOfWork;
     private readonly IDateTimeProvider _dateTimeProvider;
+    private readonly ICurrentUser _currentUser;
 
     public CreateOrderCommandHandler(
         IProductRepository productRepository,
         IOrderRepository orderRepository,
         IUnitOfWork unitOfWork,
-        IDateTimeProvider dateTimeProvider)
+        IDateTimeProvider dateTimeProvider,
+        ICurrentUser currentUser)
     {
         _productRepository = productRepository;
         _orderRepository = orderRepository;
         _unitOfWork = unitOfWork;
         _dateTimeProvider = dateTimeProvider;
+        _currentUser = currentUser;
     }
 
     public async Task<Guid> Handle(CreateOrderCommand request, CancellationToken cancellationToken)
@@ -45,7 +48,7 @@ internal sealed class CreateOrderCommandHandler : IRequestHandler<CreateOrderCom
         // 2. Build the order. The order's currency follows the catalog; mixing currencies is rejected by Order.AddItem.
         var now = _dateTimeProvider.UtcNow;
         var currency = products[productIds[0]].Price.Currency;
-        var order = Order.Create(new CustomerId(request.CustomerId), currency, now);
+        var order = Order.Create(new CustomerId(_currentUser.UserId), currency, now);
 
         foreach (var item in request.Items)
         {

@@ -6,12 +6,10 @@ namespace TodayEcommerce.Core.Application.Ordering.Commands.CreateOrder;
 /// Places a new order. Returns the id of the created order.
 /// </summary>
 /// <remarks>
-/// CustomerId comes from the request for now; once authentication exists it must be taken
-/// from the logged-in user instead, otherwise anyone could order on behalf of anyone.
-/// Prices are intentionally NOT part of the request: the server always uses the catalog price.
+/// Deliberately missing from the request: the customer (taken from the signed-in user, see
+/// <see cref="Abstractions.ICurrentUser"/>) and prices (always taken from the catalog).
+/// Whatever the caller could fake is not something the caller gets to send.
 /// </remarks>
-public sealed record CreateOrderCommand(
-    Guid CustomerId,
-    IReadOnlyList<CreateOrderItem> Items) : IRequest<Guid>;
+public sealed record CreateOrderCommand(IReadOnlyList<CreateOrderItem> Items) : IRequest<Guid>;
 
 public sealed record CreateOrderItem(Guid ProductId, int Quantity);

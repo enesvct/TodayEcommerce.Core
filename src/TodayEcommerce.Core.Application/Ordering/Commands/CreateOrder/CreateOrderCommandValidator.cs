@@ -13,9 +13,6 @@ internal sealed class CreateOrderCommandValidator : AbstractValidator<CreateOrde
 
     public CreateOrderCommandValidator()
     {
-        RuleFor(x => x.CustomerId)
-            .NotEmpty();
-
         RuleFor(x => x.Items)
             .NotEmpty().WithMessage("An order must contain at least one item.")
             .Must(items => items.Count <= MaxItemsPerOrder)

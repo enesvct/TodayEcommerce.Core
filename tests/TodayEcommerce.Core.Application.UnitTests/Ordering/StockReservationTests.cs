@@ -9,7 +9,6 @@ namespace TodayEcommerce.Core.Application.UnitTests.Ordering;
 public class StockReservationTests
 {
     private readonly ApplicationTestHost _host = new();
-    private static readonly Guid CustomerId = Guid.NewGuid();
 
     private Product Seed(string name, int stock)
     {
@@ -22,7 +21,6 @@ public class StockReservationTests
     private async Task<Order> PlaceAsync(params (Product Product, int Quantity)[] lines)
     {
         var id = await _host.Mediator.Send(new CreateOrderCommand(
-            CustomerId,
             lines.Select(l => new CreateOrderItem(l.Product.Id.Value, l.Quantity)).ToList()));
         return _host.Orders.Added.Single(o => o.Id.Value == id);
     }

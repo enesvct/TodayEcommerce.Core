@@ -22,6 +22,7 @@ public sealed class ApplicationTestHost
     public FixedDateTimeProvider Clock { get; } = new();
     public FakeCacheService Cache { get; } = new();
     public FakeProductSearchService Search { get; } = new();
+    public FakeCurrentUser CurrentUser { get; } = new();
 
     public IMediator Mediator { get; }
 
@@ -36,6 +37,7 @@ public sealed class ApplicationTestHost
         services.AddSingleton<IOrderRepository>(Orders);
         services.AddSingleton<IUnitOfWork>(UnitOfWork);
         services.AddSingleton<IDateTimeProvider>(Clock);
+        services.AddSingleton<ICurrentUser>(CurrentUser);
 
         _provider = services.BuildServiceProvider();
         Mediator = _provider.GetRequiredService<IMediator>();

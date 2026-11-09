@@ -90,7 +90,7 @@ public class ProductCachingTests
         phone.RemoveStock(Quantity.Create(5));                              // real stock is now 0
         var queriesBefore = _host.Products.QueryCount;
 
-        var order = new CreateOrderCommand(Guid.NewGuid(), new[] { new CreateOrderItem(phone.Id.Value, 1) });
+        var order = new CreateOrderCommand(new[] { new CreateOrderItem(phone.Id.Value, 1) });
 
         await Assert.ThrowsAsync<Domain.Common.DomainException>(() => _host.Mediator.Send(order));
         Assert.Equal(queriesBefore + 1, _host.Products.QueryCount); // went to the database, saw stock 0
