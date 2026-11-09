@@ -69,3 +69,19 @@ Authorization: Bearer {{ayseToken}}
 Content-Type: application/json
 
 { "name": "Yetkisiz Urun", "price": 1, "currency": "TRY", "initialStock": 1 }
+
+### Idempotency — send this twice: the second answer is the SAME order id, no second order
+POST {{host}}/api/orders
+Authorization: Bearer {{ayseToken}}
+Idempotency-Key: checkout-demo-1
+Content-Type: application/json
+
+{ "items": [ { "productId": "{{productId}}", "quantity": 1 } ] }
+
+### 422 — same key, different basket
+POST {{host}}/api/orders
+Authorization: Bearer {{ayseToken}}
+Idempotency-Key: checkout-demo-1
+Content-Type: application/json
+
+{ "items": [ { "productId": "{{productId}}", "quantity": 3 } ] }

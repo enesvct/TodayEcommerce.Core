@@ -7,6 +7,7 @@ using TodayEcommerce.Core.Application.Abstractions;
 using TodayEcommerce.Core.Domain.Catalog;
 using TodayEcommerce.Core.Domain.Ordering;
 using TodayEcommerce.Core.Infrastructure.Caching;
+using TodayEcommerce.Core.Infrastructure.Idempotency;
 using TodayEcommerce.Core.Infrastructure.Outbox;
 using TodayEcommerce.Core.Infrastructure.Persistence;
 using TodayEcommerce.Core.Infrastructure.Persistence.Repositories;
@@ -35,6 +36,7 @@ public static class DependencyInjection
         services.AddScoped<IUnitOfWork>(sp => sp.GetRequiredService<AppDbContext>());
         services.AddScoped<IProductRepository, ProductRepository>();
         services.AddScoped<IOrderRepository, OrderRepository>();
+        services.AddScoped<IIdempotencyStore, IdempotencyStore>();
 
         services.AddSingleton<IDateTimeProvider, SystemDateTimeProvider>();
 

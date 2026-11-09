@@ -1,9 +1,11 @@
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 using TodayEcommerce.Core.Application.Abstractions;
 using TodayEcommerce.Core.Application.Common.Exceptions;
 using TodayEcommerce.Core.Domain.Catalog;
 using TodayEcommerce.Core.Domain.Common;
 using TodayEcommerce.Core.Domain.Ordering;
+using TodayEcommerce.Core.Infrastructure.Idempotency;
 using TodayEcommerce.Core.Infrastructure.Outbox;
 
 namespace TodayEcommerce.Core.Infrastructure.Persistence;
@@ -22,6 +24,7 @@ public sealed class AppDbContext : DbContext, IUnitOfWork
     public DbSet<Product> Products => Set<Product>();
     public DbSet<Order> Orders => Set<Order>();
     public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
+    internal DbSet<IdempotencyRecordEntity> IdempotencyRecords => Set<IdempotencyRecordEntity>();
 
     public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
@@ -51,6 +54,14 @@ public sealed class AppDbContext : DbContext, IUnitOfWork
             var entity = ex.Entries.FirstOrDefault()?.Metadata.ClrType.Name ?? "Entity";
             throw new ConcurrencyException(
                 $"{entity} was modified by another request after it was read. Reload and try again.", ex);
+        }
+        catch (DbUpdateException ex) when (ex.InnerException is PostgresException
+        {
+            SqlState: PostgresErrorCodes.UniqueViolation,
+            TableName: IdempotencyRecordConfiguration.TableName,
+        })
+        {
+            throw new DuplicateIdempotencyKeyException(ex);
         }
     }
 

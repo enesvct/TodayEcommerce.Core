@@ -104,6 +104,41 @@ namespace TodayEcommerce.Core.Infrastructure.Persistence.Migrations
                     b.ToTable("orders", (string)null);
                 });
 
+            modelBuilder.Entity("TodayEcommerce.Core.Infrastructure.Idempotency.IdempotencyRecordEntity", b =>
+                {
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.Property<string>("Key")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("key");
+
+                    b.Property<DateTime>("CreatedOnUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_on_utc");
+
+                    b.Property<string>("RequestHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character(64)")
+                        .HasColumnName("request_hash")
+                        .IsFixedLength();
+
+                    b.Property<Guid>("ResultId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("result_id");
+
+                    b.HasKey("UserId", "Key")
+                        .HasName("pk_idempotency_records");
+
+                    b.HasIndex("CreatedOnUtc")
+                        .HasDatabaseName("ix_idempotency_records_created_on_utc");
+
+                    b.ToTable("idempotency_records", (string)null);
+                });
+
             modelBuilder.Entity("TodayEcommerce.Core.Infrastructure.Outbox.OutboxMessage", b =>
                 {
                     b.Property<Guid>("Id")

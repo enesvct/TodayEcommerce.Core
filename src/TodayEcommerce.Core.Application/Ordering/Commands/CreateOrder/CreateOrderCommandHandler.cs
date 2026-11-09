@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using System.Text;
 using MediatR;
 using TodayEcommerce.Core.Application.Abstractions;
 using TodayEcommerce.Core.Application.Common.Exceptions;
@@ -17,23 +19,42 @@ internal sealed class CreateOrderCommandHandler : IRequestHandler<CreateOrderCom
     private readonly IUnitOfWork _unitOfWork;
     private readonly IDateTimeProvider _dateTimeProvider;
     private readonly ICurrentUser _currentUser;
+    private readonly IIdempotencyStore _idempotencyStore;
 
     public CreateOrderCommandHandler(
         IProductRepository productRepository,
         IOrderRepository orderRepository,
         IUnitOfWork unitOfWork,
         IDateTimeProvider dateTimeProvider,
-        ICurrentUser currentUser)
+        ICurrentUser currentUser,
+        IIdempotencyStore idempotencyStore)
     {
         _productRepository = productRepository;
         _orderRepository = orderRepository;
         _unitOfWork = unitOfWork;
         _dateTimeProvider = dateTimeProvider;
         _currentUser = currentUser;
+        _idempotencyStore = idempotencyStore;
     }
 
     public async Task<Guid> Handle(CreateOrderCommand request, CancellationToken cancellationToken)
     {
+        var userId = _currentUser.UserId;
+        var key = request.IdempotencyKey;
+        var requestHash = key is null ? null : Fingerprint(request);
+
+        // 0. A retry of a request we already handled? Answer with the original order — and do it BEFORE
+        //    any business check: the first request may have bought the last unit, so re-checking stock
+        //    would wrongly tell the client "out of stock" for an order that actually succeeded.
+        if (key is not null)
+        {
+            var previous = await _idempotencyStore.FindAsync(userId, key, cancellationToken);
+            if (previous is not null)
+            {
+                return Replay(previous, key, requestHash!);
+            }
+        }
+
         // 1. Load every referenced product in ONE query (no N+1).
         var productIds = request.Items.Select(i => new ProductId(i.ProductId)).Distinct().ToList();
         var products = (await _productRepository.GetByIdsAsync(productIds, cancellationToken))
@@ -48,7 +69,7 @@ internal sealed class CreateOrderCommandHandler : IRequestHandler<CreateOrderCom
         // 2. Build the order. The order's currency follows the catalog; mixing currencies is rejected by Order.AddItem.
         var now = _dateTimeProvider.UtcNow;
         var currency = products[productIds[0]].Price.Currency;
-        var order = Order.Create(new CustomerId(_currentUser.UserId), currency, now);
+        var order = Order.Create(new CustomerId(userId), currency, now);
 
         foreach (var item in request.Items)
         {
@@ -65,10 +86,42 @@ internal sealed class CreateOrderCommandHandler : IRequestHandler<CreateOrderCom
 
         order.Place(now);
 
-        // 3. Persist: repository tracks the new order, unit of work commits in one transaction.
+        // 3. Persist: the order, its outbox events and the idempotency record commit in ONE transaction.
         _orderRepository.Add(order);
-        await _unitOfWork.SaveChangesAsync(cancellationToken);
+        if (key is not null)
+        {
+            _idempotencyStore.Add(userId, key, new IdempotencyRecord(requestHash!, order.Id.Value));
+        }
+
+        try
+        {
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+        }
+        catch (DuplicateIdempotencyKeyException) when (key is not null)
+        {
+            // A twin request (same user, same key) passed step 0 at the same moment and committed first.
+            // The database's unique key stopped us from creating a second order; answer like the winner did.
+            var winner = await _idempotencyStore.FindAsync(userId, key, cancellationToken)
+                ?? throw new InvalidOperationException("Idempotency record vanished after a duplicate-key conflict.");
+            return Replay(winner, key, requestHash!);
+        }
 
         return order.Id.Value;
+    }
+
+    private static Guid Replay(IdempotencyRecord previous, string key, string requestHash) =>
+        previous.RequestHash == requestHash
+            ? previous.ResultId
+            : throw new IdempotencyKeyReusedException(key);
+
+    /// <summary>Same items in any order → same fingerprint.</summary>
+    private static string Fingerprint(CreateOrderCommand request)
+    {
+        var canonical = string.Join(';', request.Items
+            .OrderBy(i => i.ProductId)
+            .ThenBy(i => i.Quantity)
+            .Select(i => $"{i.ProductId:N}:{i.Quantity}"));
+
+        return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes("CreateOrder|" + canonical)));
     }
 }

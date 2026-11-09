@@ -10,6 +10,7 @@ internal sealed class CreateOrderCommandValidator : AbstractValidator<CreateOrde
 {
     public const int MaxItemsPerOrder = 50;
     public const int MaxQuantityPerItem = 100;
+    public const int MaxIdempotencyKeyLength = 100;
 
     public CreateOrderCommandValidator()
     {
@@ -17,6 +18,10 @@ internal sealed class CreateOrderCommandValidator : AbstractValidator<CreateOrde
             .NotEmpty().WithMessage("An order must contain at least one item.")
             .Must(items => items.Count <= MaxItemsPerOrder)
                 .WithMessage($"An order cannot contain more than {MaxItemsPerOrder} items.");
+
+        RuleFor(x => x.IdempotencyKey)
+            .NotEmpty().MaximumLength(MaxIdempotencyKeyLength)
+            .When(x => x.IdempotencyKey is not null);
 
         RuleForEach(x => x.Items).ChildRules(item =>
         {

@@ -121,3 +121,15 @@ public sealed class FakeCurrentUser : ICurrentUser
 {
     public Guid UserId { get; set; } = Guid.NewGuid();
 }
+
+public sealed class FakeIdempotencyStore : IIdempotencyStore
+{
+    private readonly Dictionary<(Guid, string), IdempotencyRecord> _records = new();
+
+    public int Count => _records.Count;
+
+    public Task<IdempotencyRecord?> FindAsync(Guid userId, string key, CancellationToken cancellationToken = default) =>
+        Task.FromResult(_records.GetValueOrDefault((userId, key)));
+
+    public void Add(Guid userId, string key, IdempotencyRecord record) => _records.Add((userId, key), record);
+}

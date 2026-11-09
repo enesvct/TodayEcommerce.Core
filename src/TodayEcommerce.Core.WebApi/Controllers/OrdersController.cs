@@ -24,11 +24,18 @@ public sealed class OrdersController : ControllerBase
     [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status422UnprocessableEntity)]
-    public async Task<IActionResult> Create(CreateOrderCommand command, CancellationToken cancellationToken)
+    public async Task<IActionResult> Create(
+        CreateOrderRequest request,
+        [FromHeader(Name = "Idempotency-Key")] string? idempotencyKey,
+        CancellationToken cancellationToken)
     {
-        var id = await _sender.Send(command, cancellationToken);
+        // A retry with the same key returns the SAME order id (and the same 201) — never a second order.
+        var id = await _sender.Send(new CreateOrderCommand(request.Items, idempotencyKey), cancellationToken);
         return CreatedAtAction(nameof(GetById), new { id }, new { id });
     }
+
+    /// <summary>HTTP body shape. The key travels as a header, the customer comes from the token.</summary>
+    public sealed record CreateOrderRequest(IReadOnlyList<CreateOrderItem> Items);
 
     [HttpGet("{id:guid}")]
     [ProducesResponseType(typeof(OrderDto), StatusCodes.Status200OK)]
