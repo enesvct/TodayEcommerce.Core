@@ -4,6 +4,7 @@ using TodayEcommerce.Core.Application;
 using TodayEcommerce.Core.Infrastructure;
 using TodayEcommerce.Core.WebApi.Authentication;
 using TodayEcommerce.Core.WebApi.ErrorHandling;
+using TodayEcommerce.Core.WebApi.HealthChecks;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -61,6 +62,7 @@ app.UseAuthentication(); // who are you? (reads and validates the token)
 app.UseAuthorization();  // are you allowed? (policies, roles)
 
 app.MapControllers();
+app.MapHealthEndpoints();
 
 app.Run();
 

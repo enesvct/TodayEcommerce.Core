@@ -3,11 +3,13 @@ using Hangfire.PostgreSql;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 using TodayEcommerce.Core.Application.Abstractions;
 using TodayEcommerce.Core.Application.Ordering.Queries.GetMyOrders;
 using TodayEcommerce.Core.Domain.Catalog;
 using TodayEcommerce.Core.Domain.Ordering;
 using TodayEcommerce.Core.Infrastructure.Caching;
+using TodayEcommerce.Core.Infrastructure.HealthChecks;
 using TodayEcommerce.Core.Infrastructure.Idempotency;
 using TodayEcommerce.Core.Infrastructure.Outbox;
 using TodayEcommerce.Core.Infrastructure.Persistence;
@@ -65,6 +67,15 @@ public static class DependencyInjection
 
         services.AddSingleton<OutboxProcessor>();
         services.AddTransient<ProcessOutboxJob>();
+
+        // Readiness: "may this instance receive traffic?" Only the database is critical. Redis and
+        // Elasticsearch going down degrade the shop (slower, no search) but orders still work — reporting
+        // them as Unhealthy would make the platform pull EVERY instance out at once (cascading failure).
+        var probeTimeout = TimeSpan.FromSeconds(2); // a hung dependency must not hang the probe
+        services.AddHealthChecks()
+            .AddCheck<PostgresHealthCheck>("postgresql", HealthStatus.Unhealthy, [HealthCheckTags.Ready], probeTimeout)
+            .AddCheck<RedisHealthCheck>("redis", HealthStatus.Degraded, [HealthCheckTags.Ready], probeTimeout)
+            .AddCheck<ElasticsearchHealthCheck>("elasticsearch", HealthStatus.Degraded, [HealthCheckTags.Ready], probeTimeout);
 
         return services;
     }
