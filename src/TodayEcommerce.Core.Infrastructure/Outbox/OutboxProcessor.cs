@@ -9,7 +9,7 @@ namespace TodayEcommerce.Core.Infrastructure.Outbox;
 
 /// <summary>
 /// Delivers pending outbox messages to their domain event handlers.
-/// Scheduling (how often this runs) is a separate concern — Step 5b wires it to Hangfire.
+/// Scheduling (how often this runs) is a separate concern: see <see cref="ProcessOutboxJob"/>.
 /// </summary>
 /// <remarks>
 /// Guarantees and their limits:

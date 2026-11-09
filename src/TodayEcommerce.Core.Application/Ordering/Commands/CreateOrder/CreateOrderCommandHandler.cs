@@ -52,9 +52,9 @@ internal sealed class CreateOrderCommandHandler : IRequestHandler<CreateOrderCom
             var product = products[new ProductId(item.ProductId)];
             var quantity = Quantity.Create(item.Quantity);
 
-            // Early, friendly check only. The authoritative stock decrease happens later
-            // (Step 5: OrderCreated event → Outbox → Product.RemoveStock with concurrency control).
-            product.EnsureStockFor(quantity); // rule + message now live in the Product aggregate
+            // Early, friendly check only. The authoritative stock decrease happens asynchronously:
+            // OrderPlaced event → outbox → ReserveStockOnOrderPlacedHandler (with concurrency control).
+            product.EnsureStockFor(quantity);
 
             // Name and price are copied from the catalog = snapshot at ordering time.
             order.AddItem(product.Id, product.Name, product.Price, quantity);

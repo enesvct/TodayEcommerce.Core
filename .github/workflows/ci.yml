@@ -1,0 +1,42 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# A newer push to the same branch cancels the run that is still going: only the latest commit matters.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest # Docker is preinstalled → Testcontainers can start PostgreSQL
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Restore
+        run: dotnet restore TodayEcommerce.Core.sln
+
+      - name: Build
+        run: dotnet build TodayEcommerce.Core.sln --configuration Release --no-restore
+
+      - name: Test
+        run: dotnet test TodayEcommerce.Core.sln --configuration Release --no-build --logger "trx" --results-directory TestResults
+
+      - name: Upload test results
+        if: always() # also when tests fail — that is when the report is needed most
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: TestResults
