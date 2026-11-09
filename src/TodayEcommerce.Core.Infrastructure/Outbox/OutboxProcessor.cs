@@ -67,6 +67,27 @@ public sealed class OutboxProcessor
         return succeeded;
     }
 
+    /// <summary>
+    /// Keeps processing while there is work, up to <paramref name="maxRounds"/> batches. One event often causes
+    /// the next (OrderPlaced → StockReserved → OrderConfirmed): draining delivers the whole chain in one job run
+    /// instead of one hop per 5-second tick. Failed messages wait for their back-off, so they don't loop here.
+    /// </summary>
+    public async Task<int> DrainAsync(int batchSize = 20, int maxRounds = 10, CancellationToken cancellationToken = default)
+    {
+        var total = 0;
+        for (var round = 0; round < maxRounds; round++)
+        {
+            var succeeded = await ProcessAsync(batchSize, cancellationToken);
+            total += succeeded;
+            if (succeeded == 0)
+            {
+                break;
+            }
+        }
+
+        return total;
+    }
+
     private async Task<List<Guid>> LoadCandidateIdsAsync(int batchSize, CancellationToken cancellationToken)
     {
         using var scope = _scopeFactory.CreateScope();
@@ -91,7 +112,7 @@ public sealed class OutboxProcessor
         using (var scope = _scopeFactory.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-            var dispatcher = scope.ServiceProvider.GetRequiredService<IDomainEventDispatcher>();
+            var dispatcher = scope.ServiceProvider.GetRequiredService<IEventDispatcher>();
 
             await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
 
@@ -121,8 +142,7 @@ public sealed class OutboxProcessor
 
             try
             {
-                var domainEvent = OutboxSerializer.ToDomainEvent(message);
-                await dispatcher.DispatchAsync(domainEvent, cancellationToken);
+                await dispatcher.DispatchAsync(OutboxSerializer.ToEvent(message), cancellationToken);
 
                 message.ProcessedOnUtc = _clock.UtcNow;
                 message.LastError = null;

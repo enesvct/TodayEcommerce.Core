@@ -3,6 +3,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using TodayEcommerce.Core.Application.Abstractions;
 using TodayEcommerce.Core.Application.Catalog.Search;
+using TodayEcommerce.Core.Application.Common.Events;
 using TodayEcommerce.Core.Application.Common.Exceptions;
 using TodayEcommerce.Core.Application.Common;
 using TodayEcommerce.Core.Application;
@@ -54,6 +55,52 @@ public sealed class NoOpCache : ICacheService
     public Task RemoveAsync(string key, CancellationToken cancellationToken = default) => Task.CompletedTask;
 }
 
+// Test-only module messages: Ping's handler publishes Pong, like StockReserved follows OrderPlaced.
+public sealed record PingIntegrationEvent(Guid Id) : IIntegrationEvent;
+public sealed record PongIntegrationEvent(Guid Id) : IIntegrationEvent;
+
+public sealed class ReceivedIntegrationEvents
+{
+    public List<object> All { get; } = new();
+}
+
+public sealed class PingHandler : IIntegrationEventHandler<PingIntegrationEvent>
+{
+    private readonly ReceivedIntegrationEvents _received;
+    private readonly IIntegrationEventPublisher _publisher;
+    private readonly IUnitOfWork _unitOfWork;
+
+    public PingHandler(ReceivedIntegrationEvents received, IIntegrationEventPublisher publisher, IUnitOfWork unitOfWork)
+    {
+        _received = received;
+        _publisher = publisher;
+        _unitOfWork = unitOfWork;
+    }
+
+    public async Task HandleAsync(PingIntegrationEvent e, CancellationToken cancellationToken)
+    {
+        _received.All.Add(e);
+        _publisher.Publish(new PongIntegrationEvent(e.Id));
+        await _unitOfWork.SaveChangesAsync(cancellationToken); // Pong commits with Ping's "processed" mark
+    }
+}
+
+public sealed class PongHandler : IIntegrationEventHandler<PongIntegrationEvent>
+{
+    private readonly ReceivedIntegrationEvents _received;
+
+    public PongHandler(ReceivedIntegrationEvents received)
+    {
+        _received = received;
+    }
+
+    public Task HandleAsync(PongIntegrationEvent e, CancellationToken cancellationToken)
+    {
+        _received.All.Add(e);
+        return Task.CompletedTask;
+    }
+}
+
 [Collection(PostgresCollection.Name)]
 public class OutboxTests
 {
@@ -61,6 +108,7 @@ public class OutboxTests
     private readonly SwitchableSearchService _search = new();
     private readonly ControllableClock _clock = new();
     private readonly ServiceProvider _services;
+    private readonly ReceivedIntegrationEvents _received = new();
 
     public OutboxTests(PostgresFixture db)
     {
@@ -84,6 +132,9 @@ public class OutboxTests
         services.AddSingleton<IProductSearchService>(_search);
         services.AddSingleton<ICacheService, NoOpCache>();
         services.AddSingleton<IDateTimeProvider>(_clock);
+        services.AddSingleton(_received);
+        services.AddScoped<IIntegrationEventHandler<PingIntegrationEvent>, PingHandler>();
+        services.AddScoped<IIntegrationEventHandler<PongIntegrationEvent>, PongHandler>();
         _services = services.BuildServiceProvider();
     }
 
@@ -104,7 +155,7 @@ public class OutboxTests
         var messages = await db.OutboxMessages.AsNoTracking()
             .Where(m => m.Type.Contains(nameof(ProductCreatedDomainEvent)))
             .ToListAsync();
-        return messages.Single(m => OutboxSerializer.ToDomainEvent(m) is ProductCreatedDomainEvent e && e.ProductId == id);
+        return messages.Single(m => OutboxSerializer.ToEvent(m) is ProductCreatedDomainEvent e && e.ProductId == id);
     }
 
     [Fact]
@@ -137,7 +188,7 @@ public class OutboxTests
         var priceEvents = (await check.OutboxMessages.AsNoTracking()
                 .Where(m => m.Type.Contains(nameof(ProductPriceChangedDomainEvent)))
                 .ToListAsync())
-            .Select(OutboxSerializer.ToDomainEvent)
+            .Select(OutboxSerializer.ToEvent)
             .OfType<ProductPriceChangedDomainEvent>()
             .Where(e => e.ProductId == product.Id)
             .ToList();
@@ -377,5 +428,52 @@ public class OutboxTests
                 .ToListAsync())
             .Single(m => m.Content.Contains(orderId.Value.ToString()));
         Assert.Contains(requestTraceId, confirmed.TraceParent);
+    }
+
+    private async Task PublishAsync(IIntegrationEvent e, bool save)
+    {
+        using var scope = _services.CreateScope();
+        scope.ServiceProvider.GetRequiredService<IIntegrationEventPublisher>().Publish(e);
+        if (save)
+        {
+            await scope.ServiceProvider.GetRequiredService<IUnitOfWork>().SaveChangesAsync();
+        }
+    }
+
+    [Fact]
+    public async Task IntegrationEvent_TravelsThroughTheOutbox_ToTheOtherModulesHandler()
+    {
+        var ping = new PingIntegrationEvent(Guid.NewGuid());
+
+        await PublishAsync(ping, save: true);
+        await Processor.ProcessAsync(batchSize: 100);
+
+        Assert.Contains(ping, _received.All);
+    }
+
+    [Fact]
+    public async Task IntegrationEvent_OfAChangeThatWasNeverSaved_IsNeverDelivered()
+    {
+        var ping = new PingIntegrationEvent(Guid.NewGuid());
+
+        await PublishAsync(ping, save: false); // the use case failed before SaveChanges
+        await Processor.DrainAsync(batchSize: 100);
+
+        Assert.DoesNotContain(ping, _received.All);
+    }
+
+    [Fact]
+    public async Task Drain_DeliversAChainOfEvents_InOneRun_OneTickPerHopWithoutIt()
+    {
+        var first = new PingIntegrationEvent(Guid.NewGuid());
+        await PublishAsync(first, save: true);
+        await Processor.ProcessAsync(batchSize: 100);                        // one round: Ping only
+        Assert.DoesNotContain(new PongIntegrationEvent(first.Id), _received.All);
+
+        var second = new PingIntegrationEvent(Guid.NewGuid());
+        await PublishAsync(second, save: true);
+        await Processor.DrainAsync(batchSize: 100);                          // drain: Ping, then the Pong it caused
+
+        Assert.Contains(new PongIntegrationEvent(second.Id), _received.All);
     }
 }

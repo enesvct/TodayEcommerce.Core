@@ -24,6 +24,7 @@ public sealed class ApplicationTestHost
     public FakeProductSearchService Search { get; } = new();
     public FakeCurrentUser CurrentUser { get; } = new();
     public FakeIdempotencyStore Idempotency { get; } = new();
+    public FakeIntegrationEventPublisher IntegrationEvents { get; } = new();
 
     public IMediator Mediator { get; }
 
@@ -40,6 +41,7 @@ public sealed class ApplicationTestHost
         services.AddSingleton<IDateTimeProvider>(Clock);
         services.AddSingleton<ICurrentUser>(CurrentUser);
         services.AddSingleton<IIdempotencyStore>(Idempotency);
+        services.AddSingleton<IIntegrationEventPublisher>(IntegrationEvents);
 
         _provider = services.BuildServiceProvider();
         Mediator = _provider.GetRequiredService<IMediator>();
@@ -52,17 +54,18 @@ public sealed class ApplicationTestHost
     public async Task DispatchDomainEventsAsync()
     {
         var aggregates = Products.All.Cast<IHasDomainEvents>().Concat(Orders.Added).ToList();
-        var events = aggregates.SelectMany(a => a.DomainEvents).ToList();
+        var events = aggregates.SelectMany(a => a.DomainEvents).Cast<object>().ToList();
         aggregates.ForEach(a => a.ClearDomainEvents());
+        events.AddRange(IntegrationEvents.TakePending()); // published since the last round
 
         await DispatchAsync(events);
     }
 
     /// <summary>Dispatches the given events (e.g. to simulate the outbox delivering an event twice).</summary>
-    public async Task DispatchAsync(IEnumerable<IDomainEvent> events)
+    public async Task DispatchAsync(IEnumerable<object> events)
     {
         using var scope = _provider.CreateScope();
-        var dispatcher = scope.ServiceProvider.GetRequiredService<IDomainEventDispatcher>();
+        var dispatcher = scope.ServiceProvider.GetRequiredService<IEventDispatcher>();
         foreach (var domainEvent in events)
         {
             await dispatcher.DispatchAsync(domainEvent, CancellationToken.None);

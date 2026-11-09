@@ -5,6 +5,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using TodayEcommerce.Core.Application.Abstractions;
+using TodayEcommerce.Core.Application.Common.Events;
 using TodayEcommerce.Core.Application.Ordering.Queries.GetMyOrders;
 using TodayEcommerce.Core.Domain.Catalog;
 using TodayEcommerce.Core.Domain.Ordering;
@@ -65,6 +66,7 @@ public static class DependencyInjection
         services.AddSingleton<IProductSearchService, ElasticsearchProductSearchService>();
         services.AddHostedService<ProductSearchIndexInitializer>();
 
+        services.AddScoped<IIntegrationEventPublisher, OutboxIntegrationEventPublisher>();
         services.AddSingleton<OutboxProcessor>();
         services.AddTransient<ProcessOutboxJob>();
 

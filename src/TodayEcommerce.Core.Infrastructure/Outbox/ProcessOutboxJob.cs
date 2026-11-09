@@ -24,5 +24,5 @@ public sealed class ProcessOutboxJob
     [AutomaticRetry(Attempts = 0)]
     [DisableConcurrentExecution(timeoutInSeconds: 60)]
     public Task ExecuteAsync(CancellationToken cancellationToken) =>
-        _processor.ProcessAsync(batchSize: 50, cancellationToken);
+        _processor.DrainAsync(batchSize: 50, maxRounds: 10, cancellationToken);
 }

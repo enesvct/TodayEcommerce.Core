@@ -1,4 +1,5 @@
 using TodayEcommerce.Core.Application.Abstractions;
+using TodayEcommerce.Core.Application.Common.Events;
 using TodayEcommerce.Core.Application.Common;
 using TodayEcommerce.Core.Domain.Catalog;
 using TodayEcommerce.Core.Domain.Ordering;
@@ -133,4 +134,25 @@ public sealed class FakeIdempotencyStore : IIdempotencyStore
         Task.FromResult(_records.GetValueOrDefault((userId, key)));
 
     public void Add(Guid userId, string key, IdempotencyRecord record) => _records.Add((userId, key), record);
+}
+
+/// <summary>Stand-in for the outbox: integration events wait here until the test host "processes the outbox".</summary>
+public sealed class FakeIntegrationEventPublisher : IIntegrationEventPublisher
+{
+    private readonly List<IIntegrationEvent> _pending = new();
+
+    public List<IIntegrationEvent> Published { get; } = new();
+
+    public void Publish(IIntegrationEvent integrationEvent)
+    {
+        _pending.Add(integrationEvent);
+        Published.Add(integrationEvent);
+    }
+
+    public List<IIntegrationEvent> TakePending()
+    {
+        var taken = _pending.ToList();
+        _pending.Clear();
+        return taken;
+    }
 }

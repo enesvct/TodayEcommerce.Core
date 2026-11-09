@@ -27,23 +27,25 @@ public static class DependencyInjection
         // Finds every AbstractValidator<T> in this assembly (internal ones included).
         services.AddValidatorsFromAssembly(AssemblyReference.Assembly, includeInternalTypes: true);
 
-        services.AddScoped<IDomainEventDispatcher, DomainEventDispatcher>();
-        AddDomainEventHandlers(services);
+        services.AddScoped<IEventDispatcher, EventDispatcher>();
+        AddEventHandlers(services);
 
         return services;
     }
 
     /// <summary>
-    /// Registers each class once per IDomainEventHandler&lt;TEvent&gt; it implements,
+    /// Registers each class once per IDomainEventHandler&lt;T&gt; / IIntegrationEventHandler&lt;T&gt; it implements,
     /// so a new handler is picked up without touching DI code (like MediatR's assembly scan).
     /// </summary>
-    private static void AddDomainEventHandlers(IServiceCollection services)
+    private static void AddEventHandlers(IServiceCollection services)
     {
         var registrations =
             from type in AssemblyReference.Assembly.GetTypes()
             where type is { IsClass: true, IsAbstract: false }
             from contract in type.GetInterfaces()
-            where contract.IsGenericType && contract.GetGenericTypeDefinition() == typeof(IDomainEventHandler<>)
+            where contract.IsGenericType
+                  && (contract.GetGenericTypeDefinition() == typeof(IDomainEventHandler<>)
+                      || contract.GetGenericTypeDefinition() == typeof(IIntegrationEventHandler<>))
             select (contract, type);
 
         foreach (var (contract, implementation) in registrations)
