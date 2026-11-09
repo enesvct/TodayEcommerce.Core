@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using TodayEcommerce.Core.Application.Ordering.Commands.CreateOrder;
 using TodayEcommerce.Core.Application.Common;
+using TodayEcommerce.Core.Application.Ordering.Commands.CancelOrder;
 using TodayEcommerce.Core.Application.Ordering.Queries.GetMyOrders;
 using TodayEcommerce.Core.Application.Ordering.Queries.GetOrderById;
 
@@ -56,4 +57,19 @@ public sealed class OrdersController : ControllerBase
         var order = await _sender.Send(new GetOrderByIdQuery(id), cancellationToken);
         return order is null ? NotFound() : Ok(order);
     }
+
+    /// <summary>Cancel one of your orders (also after it was confirmed); reserved stock is returned in the background.</summary>
+    [HttpPost("{id:guid}/cancel")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status422UnprocessableEntity)]
+    public async Task<IActionResult> Cancel(Guid id, CancelOrderRequest request, CancellationToken cancellationToken)
+    {
+        await _sender.Send(new CancelOrderCommand(id, request.Reason), cancellationToken);
+        return NoContent();
+    }
+
+    public sealed record CancelOrderRequest(string Reason);
 }

@@ -85,3 +85,14 @@ Idempotency-Key: checkout-demo-1
 Content-Type: application/json
 
 { "items": [ { "productId": "{{productId}}", "quantity": 3 } ] }
+
+### My orders (newest first, paged)
+GET {{host}}/api/orders?page=1&pageSize=10
+Authorization: Bearer {{ayseToken}}
+
+### Cancel an order (also allowed after it was confirmed; reserved stock is returned in the background)
+POST {{host}}/api/orders/{{orderId}}/cancel
+Authorization: Bearer {{ayseToken}}
+Content-Type: application/json
+
+{ "reason": "Vazgectim" }

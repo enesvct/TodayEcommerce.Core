@@ -273,4 +273,70 @@ public class OutboxTests
         Assert.Equal(OutboxProcessor.MaxAttempts, message.AttemptCount); // capped: no endless retry loop
         Assert.Null(message.ProcessedOnUtc);                            // left for a human to inspect
     }
+
+    private async Task<Domain.Ordering.OrderId> PlaceOrderAsync(Product product, int quantity)
+    {
+        var order = Domain.Ordering.Order.Create(new Domain.Ordering.CustomerId(Guid.NewGuid()), "TRY", DateTime.UtcNow);
+        order.AddItem(product.Id, product.Name, product.Price, Quantity.Create(quantity));
+        order.Place(DateTime.UtcNow);
+        await using var db = _db.CreateDbContext();
+        db.Orders.Add(order);
+        await db.SaveChangesAsync();
+        return order.Id;
+    }
+
+    private async Task<(Domain.Ordering.OrderStatus Status, int Stock)> StateAsync(Domain.Ordering.OrderId orderId, ProductId productId)
+    {
+        await using var db = _db.CreateDbContext();
+        var status = (await db.Orders.AsNoTracking().SingleAsync(o => o.Id == orderId)).Status;
+        var stock = (await db.Products.AsNoTracking().SingleAsync(p => p.Id == productId)).StockQuantity;
+        return (status, stock);
+    }
+
+    [Fact]
+    public async Task ConfirmedOrderCancelled_ThroughTheRealOutbox_StockComesBack()
+    {
+        var phone = await CreateProductAsync("Iade Telefonu"); // stock 2
+        var orderId = await PlaceOrderAsync(phone, 2);
+        await Processor.ProcessAsync(batchSize: 100);
+        Assert.Equal((Domain.Ordering.OrderStatus.Confirmed, 0), await StateAsync(orderId, phone.Id));
+
+        await using (var db = _db.CreateDbContext())
+        {
+            (await db.Orders.SingleAsync(o => o.Id == orderId)).Cancel("vazgectim");
+            await db.SaveChangesAsync();
+        }
+        await Processor.ProcessAsync(batchSize: 100);
+
+        Assert.Equal((Domain.Ordering.OrderStatus.Cancelled, 2), await StateAsync(orderId, phone.Id));
+    }
+
+    [Fact]
+    public async Task CancelRacingTheReservation_TheLoserGets409_AndARetryEndsCorrectly()
+    {
+        var phone = await CreateProductAsync("Yaris Telefonu"); // stock 2
+        var orderId = await PlaceOrderAsync(phone, 1);
+
+        // The customer's cancel request reads the order while it is still Placed...
+        await using var request = _db.CreateDbContext();
+        var seenByRequest = await request.Orders.SingleAsync(o => o.Id == orderId);
+
+        // ...meanwhile the outbox reserves stock and confirms the same order.
+        await Processor.ProcessAsync(batchSize: 100);
+
+        // The request now saves its stale copy: the row version no longer matches → 409, nothing written.
+        seenByRequest.Cancel("vazgectim");
+        await Assert.ThrowsAsync<ConcurrencyException>(() => request.SaveChangesAsync());
+        Assert.Equal((Domain.Ordering.OrderStatus.Confirmed, 1), await StateAsync(orderId, phone.Id));
+
+        // The client retries: it now cancels a Confirmed order, which releases the reserved unit.
+        await using (var retry = _db.CreateDbContext())
+        {
+            (await retry.Orders.SingleAsync(o => o.Id == orderId)).Cancel("vazgectim");
+            await retry.SaveChangesAsync();
+        }
+        await Processor.ProcessAsync(batchSize: 100);
+
+        Assert.Equal((Domain.Ordering.OrderStatus.Cancelled, 2), await StateAsync(orderId, phone.Id));
+    }
 }

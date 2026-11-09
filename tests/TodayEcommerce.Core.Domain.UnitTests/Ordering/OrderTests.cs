@@ -1,6 +1,7 @@
 using TodayEcommerce.Core.Domain.Catalog;
 using TodayEcommerce.Core.Domain.Common;
 using TodayEcommerce.Core.Domain.Ordering;
+using TodayEcommerce.Core.Domain.Ordering.Events;
 using TodayEcommerce.Core.Domain.SharedKernel;
 
 namespace TodayEcommerce.Core.Domain.UnitTests.Ordering;
@@ -192,13 +193,31 @@ public class OrderTests
     }
 
     [Fact]
-    public void ConfirmedOrder_CannotBeCancelledDirectly()
+    public void ConfirmedOrder_CanBeCancelled_AndAsksForItsReservedStockBack()
     {
         var order = CreatePlacedOrder();
         order.Confirm();
+        order.ClearDomainEvents();
 
-        Assert.Throws<DomainException>(() => order.Cancel("changed my mind"));
-        Assert.Equal(OrderStatus.Confirmed, order.Status);
+        order.Cancel("changed my mind");
+
+        Assert.Equal(OrderStatus.Cancelled, order.Status);
+        var cancelled = Assert.IsType<OrderCancelledDomainEvent>(Assert.Single(order.DomainEvents));
+        var line = Assert.Single(cancelled.StockToRelease);
+        Assert.Equal(order.Items.Single().ProductId, line.ProductId);
+        Assert.Equal(1, line.Quantity);
+    }
+
+    [Fact]
+    public void PlacedOrder_Cancelled_ReleasesNothing_NoStockWasReservedYet()
+    {
+        var order = CreatePlacedOrder();
+        order.ClearDomainEvents();
+
+        order.Cancel("changed my mind");
+
+        var cancelled = Assert.IsType<OrderCancelledDomainEvent>(Assert.Single(order.DomainEvents));
+        Assert.Empty(cancelled.StockToRelease); // returning stock here would create phantom stock
     }
 
     [Theory]

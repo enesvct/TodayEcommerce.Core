@@ -7,7 +7,7 @@ namespace TodayEcommerce.Core.Domain.Ordering;
 
 /// <summary>
 /// Customer order. Aggregate root that owns its <see cref="OrderItem"/>s and controls the lifecycle:
-/// Draft → Placed → Confirmed (stock reserved), or → Cancelled (from Draft or Placed).
+/// Draft → Placed → Confirmed (stock reserved), or → Cancelled (from Draft, Placed or Confirmed).
 /// </summary>
 public sealed class Order : AggregateRoot<OrderId>
 {
@@ -110,6 +110,10 @@ public sealed class Order : AggregateRoot<OrderId>
         Raise(new OrderConfirmedDomainEvent(Id, CustomerId));
     }
 
+    /// <summary>
+    /// Cancels from Draft, Placed or Confirmed (not yet shipped — there is no shipping state yet).
+    /// A Confirmed order had its stock reserved, so the event tells the catalog to put it back.
+    /// </summary>
     public void Cancel(string reason)
     {
         if (Status == OrderStatus.Cancelled)
@@ -117,20 +121,19 @@ public sealed class Order : AggregateRoot<OrderId>
             throw new DomainException("Order is already cancelled.");
         }
 
-        if (Status == OrderStatus.Confirmed)
-        {
-            // Stock is already reserved; undoing that is a separate business process (returns/refunds).
-            throw new DomainException("A confirmed order cannot be cancelled directly.");
-        }
-
         if (string.IsNullOrWhiteSpace(reason))
         {
             throw new DomainException("A cancellation reason is required.");
         }
 
+        // Decide BEFORE changing the status: only a Confirmed order has stock reserved.
+        var stockToRelease = Status == OrderStatus.Confirmed
+            ? _items.Select(i => new ReservedStockLine(i.ProductId, i.Quantity.Value)).ToList()
+            : new List<ReservedStockLine>();
+
         Status = OrderStatus.Cancelled;
         CancellationReason = reason.Trim();
-        Raise(new OrderCancelledDomainEvent(Id, CustomerId, CancellationReason));
+        Raise(new OrderCancelledDomainEvent(Id, CustomerId, CancellationReason, stockToRelease));
     }
 
     private void EnsureStatus(OrderStatus expected, string action)
