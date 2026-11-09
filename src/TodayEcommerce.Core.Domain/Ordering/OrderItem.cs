@@ -36,7 +36,9 @@ public sealed class OrderItem : Entity<OrderItemId>
     {
         ProductId = productId;
         ProductName = productName;
-        UnitPrice = unitPrice;
+        // An own copy, not the product's instance: a snapshot must not share an object with the catalog.
+        // (EF Core tracks owned values by reference; one shared instance = one object with two owners.)
+        UnitPrice = Money.Create(unitPrice.Amount, unitPrice.Currency);
         Quantity = quantity;
     }
 

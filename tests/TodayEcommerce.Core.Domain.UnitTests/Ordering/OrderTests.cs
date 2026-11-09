@@ -237,4 +237,17 @@ public class OrderTests
 
         Assert.Equal("Insufficient stock", order.CancellationReason);
     }
+
+    [Fact]
+    public void PriceSnapshot_IsAnOwnCopy_NotTheCatalogsInstance()
+    {
+        var catalogPrice = Try(100m);
+        var order = CreateDraftOrder();
+
+        order.AddItem(ProductId.New(), "Phone", catalogPrice, Quantity.Create(1));
+
+        var snapshot = order.Items.Single().UnitPrice;
+        Assert.Equal(catalogPrice, snapshot);      // same value...
+        Assert.NotSame(catalogPrice, snapshot);    // ...but not the same object (EF tracks owned values by reference)
+    }
 }
