@@ -1,7 +1,24 @@
 @host = http://localhost:5144
 
-### 1) Create a product → copy "id" from the response into @productId
+### 0) Get demo tokens (Development only) → copy "accessToken" values below
+POST {{host}}/dev/token
+Content-Type: application/json
+
+{ "user": "admin" }
+
+###
+POST {{host}}/dev/token
+Content-Type: application/json
+
+{ "user": "ayse" }
+
+###
+@adminToken = paste-admin-token-here
+@ayseToken = paste-ayse-token-here
+
+### 1) Create a product (admin only) → copy "id" from the response into @productId
 POST {{host}}/api/products
+Authorization: Bearer {{adminToken}}
 Content-Type: application/json
 
 { "name": "Telefon X", "price": 10000, "currency": "TRY", "initialStock": 5 }
@@ -14,6 +31,7 @@ GET {{host}}/api/products/{{productId}}
 
 ### 3) Place an order → copy "id" into @orderId
 POST {{host}}/api/orders
+Authorization: Bearer {{ayseToken}}
 Content-Type: application/json
 
 { "customerId": "11111111-1111-1111-1111-111111111111", "items": [ { "productId": "{{productId}}", "quantity": 2 } ] }
@@ -23,15 +41,31 @@ Content-Type: application/json
 
 ### 4) Read the order
 GET {{host}}/api/orders/{{orderId}}
+Authorization: Bearer {{ayseToken}}
 
 ### 400 — empty basket
 POST {{host}}/api/orders
+Authorization: Bearer {{ayseToken}}
 Content-Type: application/json
 
 { "customerId": "11111111-1111-1111-1111-111111111111", "items": [] }
 
 ### 422 — more than in stock
 POST {{host}}/api/orders
+Authorization: Bearer {{ayseToken}}
 Content-Type: application/json
 
 { "customerId": "11111111-1111-1111-1111-111111111111", "items": [ { "productId": "{{productId}}", "quantity": 99 } ] }
+
+### 401 — no token
+POST {{host}}/api/orders
+Content-Type: application/json
+
+{ "customerId": "11111111-1111-1111-1111-111111111111", "items": [] }
+
+### 403 — signed in, but not an admin
+POST {{host}}/api/products
+Authorization: Bearer {{ayseToken}}
+Content-Type: application/json
+
+{ "name": "Yetkisiz Urun", "price": 1, "currency": "TRY", "initialStock": 1 }

@@ -38,19 +38,41 @@ internal sealed class ProductSearchIndexInitializer : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        try
+        // Elasticsearch often starts slower than the API (e.g. right after `docker compose up`),
+        // so keep trying in the background instead of giving up after one attempt.
+        var delay = TimeSpan.FromSeconds(5);
+        var maxDelay = TimeSpan.FromMinutes(1);
+
+        while (!stoppingToken.IsCancellationRequested)
         {
-            if (!await _index.EnsureCreatedAsync(stoppingToken))
+            try
             {
-                return; // index already existed; it is kept in sync by the write path
+                if (!await _index.EnsureCreatedAsync(stoppingToken))
+                {
+                    return; // index already existed; it is kept in sync by the write path
+                }
+
+                var total = await BackfillAsync(stoppingToken);
+                _logger.LogInformation("Backfilled {Count} products into {Index}", total, ProductIndex.Name);
+                return;
+            }
+            // Not "ex is not OperationCanceledException": an HttpClient timeout is a TaskCanceledException
+            // too, and letting it escape stops the whole host. Only our own shutdown is a reason to stop.
+            catch (Exception ex) when (!stoppingToken.IsCancellationRequested)
+            {
+                _logger.LogWarning(ex, "Elasticsearch initialisation failed; retrying in {Delay}. Search is unavailable meanwhile", delay);
             }
 
-            var total = await BackfillAsync(stoppingToken);
-            _logger.LogInformation("Backfilled {Count} products into {Index}", total, ProductIndex.Name);
-        }
-        catch (Exception ex) when (ex is not OperationCanceledException)
-        {
-            _logger.LogWarning(ex, "Elasticsearch initialisation failed; search is unavailable until it recovers");
+            try
+            {
+                await Task.Delay(delay, stoppingToken);
+            }
+            catch (OperationCanceledException)
+            {
+                return; // app is shutting down
+            }
+
+            delay = TimeSpan.FromTicks(Math.Min(delay.Ticks * 2, maxDelay.Ticks));
         }
     }
 

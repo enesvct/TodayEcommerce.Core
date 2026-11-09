@@ -1,4 +1,5 @@
 using MediatR;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using TodayEcommerce.Core.Application.Ordering.Commands.CreateOrder;
 using TodayEcommerce.Core.Application.Ordering.Queries.GetOrderById;
@@ -7,6 +8,8 @@ namespace TodayEcommerce.Core.WebApi.Controllers;
 
 [ApiController]
 [Route("api/orders")]
+[Authorize] // already required by the fallback policy; stated here so the intent is visible
+[ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
 public sealed class OrdersController : ControllerBase
 {
     private readonly ISender _sender;
