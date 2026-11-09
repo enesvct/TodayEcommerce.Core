@@ -14,6 +14,7 @@ internal sealed class OutboxMessageConfiguration : IEntityTypeConfiguration<Outb
         builder.Property(m => m.Content).HasColumnType("jsonb");
         builder.Property(m => m.LastError).HasMaxLength(2000);
         builder.Property(m => m.NextAttemptOnUtc);
+        builder.Property(m => m.TraceParent).HasMaxLength(128);
 
         // The processor only ever looks for pending messages: a partial index keeps that lookup fast
         // no matter how many millions of processed rows accumulate.

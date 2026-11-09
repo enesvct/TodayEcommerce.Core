@@ -172,6 +172,11 @@ namespace TodayEcommerce.Core.Infrastructure.Persistence.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("processed_on_utc");
 
+                    b.Property<string>("TraceParent")
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)")
+                        .HasColumnName("trace_parent");
+
                     b.Property<string>("Type")
                         .IsRequired()
                         .HasMaxLength(500)

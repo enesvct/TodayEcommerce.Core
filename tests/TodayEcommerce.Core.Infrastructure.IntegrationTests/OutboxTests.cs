@@ -20,6 +20,9 @@ public sealed class SwitchableSearchService : IProductSearchService
     public bool IsDown { get; set; }
     public Dictionary<Guid, ProductSearchDocument> Indexed { get; } = new();
 
+    /// <summary>TraceId that was current when each product was indexed (= inside the outbox handler).</summary>
+    public Dictionary<Guid, string?> TraceIdWhenIndexed { get; } = new();
+
     public Task IndexAsync(ProductSearchDocument document, CancellationToken cancellationToken = default)
     {
         if (IsDown)
@@ -28,6 +31,7 @@ public sealed class SwitchableSearchService : IProductSearchService
         }
 
         Indexed[document.Id] = document;
+        TraceIdWhenIndexed[document.Id] = System.Diagnostics.Activity.Current?.TraceId.ToString();
         return Task.CompletedTask;
     }
 
@@ -338,5 +342,40 @@ public class OutboxTests
         await Processor.ProcessAsync(batchSize: 100);
 
         Assert.Equal((Domain.Ordering.OrderStatus.Cancelled, 2), await StateAsync(orderId, phone.Id));
+    }
+
+    [Fact]
+    public async Task BackgroundWork_ContinuesTheTraceOfTheRequestThatCausedIt()
+    {
+        // Stand-in for an incoming HTTP request with its own trace.
+        using var request = new System.Diagnostics.Activity("POST /api/products").Start();
+        var requestTraceId = request.TraceId.ToString();
+        var product = await CreateProductAsync("Iz Surulen Urun");
+        request.Stop(); // the request is over; the event waits in the outbox
+
+        await Processor.ProcessAsync(batchSize: 100); // later, in a Hangfire job: no request around
+
+        Assert.Equal(requestTraceId, _search.TraceIdWhenIndexed[product.Id.Value]);
+    }
+
+    [Fact]
+    public async Task TheTraceSurvivesEveryHop_EventsRaisedByHandlersCarryItToo()
+    {
+        var phone = await CreateProductAsync("Iz Telefonu");
+        await Processor.ProcessAsync(batchSize: 100);
+
+        using var request = new System.Diagnostics.Activity("POST /api/orders").Start();
+        var requestTraceId = request.TraceId.ToString();
+        var orderId = await PlaceOrderAsync(phone, 1); // hop 1: OrderPlaced, written by the request
+        request.Stop();
+
+        await Processor.ProcessAsync(batchSize: 100); // hop 2: reservation raises OrderConfirmed
+
+        await using var db = _db.CreateDbContext();
+        var confirmed = (await db.OutboxMessages.AsNoTracking()
+                .Where(m => m.Type.Contains("OrderConfirmedDomainEvent"))
+                .ToListAsync())
+            .Single(m => m.Content.Contains(orderId.Value.ToString()));
+        Assert.Contains(requestTraceId, confirmed.TraceParent);
     }
 }

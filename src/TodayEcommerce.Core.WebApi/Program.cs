@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Hangfire;
 using Microsoft.OpenApi.Models;
 using TodayEcommerce.Core.Application;
@@ -36,6 +37,22 @@ builder.Services.AddSwaggerGen(options =>
 });
 
 var app = builder.Build();
+
+// Every response carries the request's trace id. A customer reporting "my order failed" can quote it,
+// and one search for it in the logs shows the request AND the background work it caused (outbox handlers).
+app.Use((context, next) =>
+{
+    context.Response.OnStarting(() =>
+    {
+        if (Activity.Current is { } activity)
+        {
+            context.Response.Headers["X-Correlation-Id"] = activity.TraceId.ToString();
+        }
+
+        return Task.CompletedTask;
+    });
+    return next(context);
+});
 
 // First middleware: catches exceptions thrown anywhere further down the pipeline.
 app.UseExceptionHandler();

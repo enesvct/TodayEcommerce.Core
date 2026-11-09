@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text.Json;
 using TodayEcommerce.Core.Domain.Common;
 
@@ -17,6 +18,7 @@ internal static class OutboxSerializer
             Type = $"{type.FullName}, {type.Assembly.GetName().Name}",
             Content = JsonSerializer.Serialize(domainEvent, type, JsonOptions),
             OccurredOnUtc = utcNow,
+            TraceParent = Activity.Current?.Id, // the current request's (or outbox handler's) trace
         };
     }
 

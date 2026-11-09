@@ -16,6 +16,13 @@ public sealed class OutboxMessage
 
     public DateTime OccurredOnUtc { get; init; }
 
+    /// <summary>
+    /// W3C trace context of the request that raised the event (e.g. "00-&lt;trace-id&gt;-&lt;span-id&gt;-01").
+    /// The envelope, not the letter: the domain event stays free of technical metadata. The processor
+    /// continues this trace, so background work logs the same TraceId as the request that caused it.
+    /// </summary>
+    public string? TraceParent { get; init; }
+
     /// <summary>Null = not processed yet. This is the "queue".</summary>
     public DateTime? ProcessedOnUtc { get; set; }
 

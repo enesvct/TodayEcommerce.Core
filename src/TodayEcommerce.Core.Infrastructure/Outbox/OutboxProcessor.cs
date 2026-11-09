@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -108,6 +109,16 @@ public sealed class OutboxProcessor
                 return false; // processed meanwhile, or another worker is on it
             }
 
+            // Continue the trace of the request that raised the event: every log line below — and the
+            // outbox rows of any events the handlers raise — carry the same TraceId as that request.
+            using var activity = StartActivity(message);
+            using var logScope = _logger.BeginScope(new Dictionary<string, object>
+            {
+                ["OutboxMessageId"] = message.Id,
+                ["EventType"] = ShortTypeName(message.Type),
+                ["Attempt"] = message.AttemptCount + 1,
+            });
+
             try
             {
                 var domainEvent = OutboxSerializer.ToDomainEvent(message);
@@ -128,6 +139,24 @@ public sealed class OutboxProcessor
                 return false;
             }
         }
+    }
+
+    private static Activity StartActivity(OutboxMessage message)
+    {
+        var activity = new Activity("outbox.process");
+        if (message.TraceParent is not null)
+        {
+            activity.SetParentId(message.TraceParent);
+        }
+
+        return activity.Start();
+    }
+
+    /// <summary>"Namespace.OrderPlacedDomainEvent, Assembly" → "OrderPlacedDomainEvent".</summary>
+    private static string ShortTypeName(string type)
+    {
+        var fullName = type.Split(',')[0];
+        return fullName[(fullName.LastIndexOf('.') + 1)..];
     }
 
     /// <summary>Separate scope/transaction: the failed one was rolled back, but the attempt must still be counted.</summary>

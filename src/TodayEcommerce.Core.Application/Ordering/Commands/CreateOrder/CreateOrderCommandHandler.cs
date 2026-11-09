@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using MediatR;
+using Microsoft.Extensions.Logging;
 using TodayEcommerce.Core.Application.Abstractions;
 using TodayEcommerce.Core.Application.Common.Exceptions;
 using TodayEcommerce.Core.Domain.Catalog;
@@ -20,6 +21,7 @@ internal sealed class CreateOrderCommandHandler : IRequestHandler<CreateOrderCom
     private readonly IDateTimeProvider _dateTimeProvider;
     private readonly ICurrentUser _currentUser;
     private readonly IIdempotencyStore _idempotencyStore;
+    private readonly ILogger<CreateOrderCommandHandler> _logger;
 
     public CreateOrderCommandHandler(
         IProductRepository productRepository,
@@ -27,7 +29,8 @@ internal sealed class CreateOrderCommandHandler : IRequestHandler<CreateOrderCom
         IUnitOfWork unitOfWork,
         IDateTimeProvider dateTimeProvider,
         ICurrentUser currentUser,
-        IIdempotencyStore idempotencyStore)
+        IIdempotencyStore idempotencyStore,
+        ILogger<CreateOrderCommandHandler> logger)
     {
         _productRepository = productRepository;
         _orderRepository = orderRepository;
@@ -35,6 +38,7 @@ internal sealed class CreateOrderCommandHandler : IRequestHandler<CreateOrderCom
         _dateTimeProvider = dateTimeProvider;
         _currentUser = currentUser;
         _idempotencyStore = idempotencyStore;
+        _logger = logger;
     }
 
     public async Task<Guid> Handle(CreateOrderCommand request, CancellationToken cancellationToken)
@@ -51,6 +55,7 @@ internal sealed class CreateOrderCommandHandler : IRequestHandler<CreateOrderCom
             var previous = await _idempotencyStore.FindAsync(userId, key, cancellationToken);
             if (previous is not null)
             {
+                _logger.LogInformation("Idempotency key {IdempotencyKey} seen before (order {OrderId})", key, previous.ResultId);
                 return Replay(previous, key, requestHash!);
             }
         }
@@ -106,6 +111,8 @@ internal sealed class CreateOrderCommandHandler : IRequestHandler<CreateOrderCom
             return Replay(winner, key, requestHash!);
         }
 
+        _logger.LogInformation("Order {OrderId} placed by customer {CustomerId} with {Lines} line(s), total {Total} {Currency}",
+            order.Id.Value, userId, order.Items.Count, order.Total.Amount, order.Currency);
         return order.Id.Value;
     }
 
