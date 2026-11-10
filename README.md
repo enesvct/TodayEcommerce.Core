@@ -127,6 +127,15 @@ Bu zincirin bütün log satırları, Ayşe'nin isteğiyle aynı TraceId'yi taş�
 
 Önemli testlerin bir kısmını bilerek koruduğu kodu bozarak doğruladım. Örneğin `/dev/token` satırını Development bloğunun dışına taşıdığımda üç test kırmızıya döndü. Eşzamanlılık kontrolünü kaldırdığımda 10 paralel istekte 500 hataları çıktı.
 
+### Bu projeyi nasıl geliştirdim?
+
+Bu projede bir AI kodlama ajanını aktif olarak kullandım, bunu saklamak için bir sebep görmüyorum. Ama ona "kodu yaz, ben kopyalayayım" diye yaklaşmadım. Yanımda oturan deneyimli bir çalışma arkadaşı gibi kullandım. Her adımda önce problemi ve seçenekleri konuştuk, trade-off'ları tarttık, kararı ben verdim, sonra küçük adımlarla ilerledik.
+
+- **Ajanın payı:** tasarım önerileri, kodun ve testlerin büyük bir kısmı, hata ayıklama, yeni kavramların (outbox, saga, idempotency gibi) anlatılması.
+- **Benim payım:** neyin, hangi sırayla yapılacağı ve hangi bedelin kabul edileceği. Örneğin idempotency key'i şimdilik opsiyonel bırakmak, outbox temizliğini ertelemek, onaylanmış siparişlerin de iptal edilebilmesi, modülleri gerçekten ayırmak. Bunların yanında her değişikliği gözden geçirip commit'lemek de bana düştü.
+
+Yukarıda anlattığım "testi bozarak doğrulama" alışkanlığı da biraz buradan geliyor. Bir testin yeşil yanması, bana o testin gerçekten bir şeyi koruduğunu göstermiyor. Bu yüzden README'deki "neden" bölümleri benim için kodun kendisinden daha değerli: Bu projeden asıl aldığım şey, her kararı kendi cümlelerimle anlatabilmek.
+
 ### Bilinçli olarak yapmadıklarım
 
 - **Outbox temizliği:** İşlenmiş mesajlar şimdilik silinmiyor. Planım parti parti silen bir job yazmak, hacim çok büyürse de tabloyu tarihe göre bölmek (partitioning). Idempotency kayıtları için de aynısı geçerli.
@@ -264,6 +273,15 @@ Every log line in that chain carries the same TraceId as Ayşe's request. Search
 | WebApi.IntegrationTests | real HTTP: auth, 401/403/404, health, idempotency | 31 |
 
 I checked several of the important tests by deliberately breaking the code they protect. For example, moving the `/dev/token` line out of the Development block turned three tests red. Removing the concurrency handling produced 500s for ten parallel requests.
+
+### How I built this
+
+I actively used an AI coding agent on this project, and I don't see a reason to hide it. But I didn't treat it as "write the code, I'll paste it". I used it more like an experienced colleague sitting next to me. At every step we first talked through the problem and the options, weighed the trade-offs, I made the call, and then we moved forward in small steps.
+
+- **The agent's part:** design proposals, a large share of the code and tests, debugging, and explaining new concepts (outbox, saga, idempotency and so on).
+- **My part:** what to build, in which order, and which costs to accept. For example: keeping the idempotency key optional for now, postponing the outbox cleanup, allowing confirmed orders to be cancelled, actually splitting the modules. On top of that, reviewing and committing every change was my job.
+
+The habit of "breaking the code to check the test" mentioned above partly comes from this. A green test doesn't tell me it actually protects anything. That's why the "why" sections of this README matter more to me than the code itself: what I really got out of this project is being able to explain every decision in my own words.
 
 ### Things I deliberately left out
 
